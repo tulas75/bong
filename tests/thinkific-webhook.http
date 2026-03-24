@@ -1,0 +1,68 @@
+### Health Check
+GET http://localhost:3000/health
+
+###
+
+### Create a Badge (replace X-API-Key with seeded value)
+POST http://localhost:3000/api/v1/badges
+Content-Type: application/json
+X-API-Key: {{API_KEY}}
+
+{
+  "name": "Node.js Mastery",
+  "description": "Awarded for mastering Node.js fundamentals and advanced concepts.",
+  "imageUrl": "https://placehold.co/400x400/22c55e/white?text=Node.js",
+  "criteria": "Complete all modules and pass the final exam.",
+  "externalCourseId": "111222"
+}
+
+###
+
+### Issue Assertion (generic endpoint — replace badgeClassId and X-API-Key)
+POST http://localhost:3000/api/v1/assertions
+Content-Type: application/json
+X-API-Key: {{API_KEY}}
+
+{
+  "badgeClassId": "{{BADGE_CLASS_ID}}",
+  "recipientEmail": "test@example.com",
+  "recipientName": "Test User"
+}
+
+###
+
+### Course Completed Webhook (replace X-API-Key with seeded value)
+POST http://localhost:3000/api/v1/webhooks/course-completed
+Content-Type: application/json
+X-API-Key: {{API_KEY}}
+
+{
+  "resource": "course",
+  "action": "completed",
+  "payload": {
+    "user": {
+      "email": "mario.rossi@example.com",
+      "first_name": "Mario",
+      "last_name": "Rossi"
+    },
+    "course": {
+      "id": 987654,
+      "name": "Corso React Advanced"
+    }
+  }
+}
+
+###
+
+### Verify Badge (HTML page — replace assertionId)
+GET http://localhost:3000/verify/{{ASSERTION_ID}}
+
+###
+
+### Get Raw Credential (JSON-LD — replace assertionId)
+GET http://localhost:3000/api/v1/assertions/{{ASSERTION_ID}}
+
+###
+
+### Get Tenant Public Key (replace tenantId)
+GET http://localhost:3000/keys/{{TENANT_ID}}
