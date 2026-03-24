@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
+import path from "path";
 import cors from "cors";
 import { requireApiKey } from "./middleware/auth.js";
 import { logger } from "./lib/logger.js";
@@ -28,6 +29,52 @@ app.use(
     },
   })
 );
+
+// Static assets
+app.use("/public", express.static(path.join(__dirname, "../public")));
+
+// Landing page
+app.get("/", (_req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BONG — Badge Object Node Gateway</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #062748;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .container {
+      text-align: center;
+    }
+    .logo {
+      width: 280px;
+      height: auto;
+      filter: drop-shadow(0 4px 24px rgba(0, 0, 0, 0.3));
+    }
+    .version {
+      margin-top: 24px;
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="/public/logo.jpg" alt="BONG Logo" class="logo">
+    <p class="version">v1.0.0</p>
+  </div>
+</body>
+</html>`);
+});
 
 // Public routes (no auth)
 app.use(publicRouter);

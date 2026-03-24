@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import "dotenv/config";
 import { Command } from "commander";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -293,6 +294,43 @@ badge
     console.log(`  Recipient:    ${opts.name} <${opts.email}>`);
     console.log(`  Issued On:    ${issuedOn.toISOString().split("T")[0]}`);
     console.log(`  Verify URL:   https://${appDomain}/verify/${assertion.id}`);
+  });
+
+// ─── Assertion commands ──────────────────────────────────────────
+
+const assertion = program.command("assertion").description("Manage assertions");
+
+assertion
+  .command("list")
+  .description("List issued assertions")
+  .option("--badge <badgeId>", "Filter by badge class ID")
+  .option("--tenant <tenantId>", "Filter by tenant ID")
+  .action(async (opts) => {
+    const where: any = {};
+    if (opts.badge) where.badgeClassId = opts.badge;
+    if (opts.tenant) where.badgeClass = { tenantId: opts.tenant };
+
+    const assertions = await prisma.assertion.findMany({
+      where,
+      include: { badgeClass: { include: { tenant: true } } },
+      orderBy: { issuedOn: "desc" },
+    });
+
+    if (assertions.length === 0) {
+      console.log("No assertions found.");
+      return;
+    }
+
+    const appDomain = process.env.APP_DOMAIN || "localhost:3000";
+
+    console.log(`\n${"Recipient".padEnd(30)} ${"Badge".padEnd(25)} ${"Issued".padEnd(12)} Verify URL`);
+    console.log("─".repeat(120));
+    for (const a of assertions) {
+      console.log(
+        `${a.recipientName.padEnd(30)} ${a.badgeClass.name.padEnd(25)} ${a.issuedOn.toISOString().split("T")[0].padEnd(12)} https://${appDomain}/verify/${a.id}`
+      );
+    }
+    console.log(`\nTotal: ${assertions.length}`);
   });
 
 // ─── Stats command ───────────────────────────────────────────────

@@ -27,6 +27,9 @@ COPY prisma.config.ts ./
 RUN npx prisma generate
 
 COPY --from=builder /app/dist ./dist
+COPY public ./public
+
+RUN ln -s /app/dist/cli.js /usr/local/bin/bong && chmod +x /app/dist/cli.js
 
 EXPOSE 3000
 

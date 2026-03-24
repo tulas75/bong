@@ -2,15 +2,13 @@ services:
   db:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: bong
-      POSTGRES_PASSWORD: bong
-      POSTGRES_DB: bong
-    ports:
-      - "5434:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - pgdata:/var/lib/postgresql
+      - ./pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bong"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -18,17 +16,15 @@ services:
   api:
     build: .
     ports:
-      - "3000:3000"
+      - "${PORT}:${PORT}"
     environment:
-      DATABASE_URL: "postgresql://bong:bong@db:5432/bong?schema=public"
-      APP_DOMAIN: "localhost:3000"
-      PORT: "3000"
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public"
+      APP_DOMAIN: "${APP_DOMAIN}"
+      PORT: "${PORT}"
       ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
+      CORS_ORIGINS: "${CORS_ORIGINS}"
     volumes:
       - ./templates:/app/templates
     depends_on:
       db:
         condition: service_healthy
-
-volumes:
-  pgdata:
