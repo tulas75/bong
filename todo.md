@@ -64,15 +64,15 @@ Currently the project uses `"module": "commonjs"` and `"target": "ES2020"`. Migr
 
 The project currently has no automated tests. Add a test framework and comprehensive test coverage.
 
-- [ ] Set up test framework (e.g. Vitest or Jest)
-- [ ] Add unit tests for `src/lib/crypto.ts` (argon2 hashing, encryption, email hashing, prefix extraction)
-- [ ] Add unit tests for `src/lib/schemas.ts` (Zod validation)
-- [ ] Add integration tests for API routes (assertions, badges, webhooks)
-- [ ] Add integration tests for auth middleware (valid key, invalid key, missing key)
-- [ ] Add integration tests for public routes (verify page, JSON-LD endpoint, keys endpoint)
+- [x] Set up test framework (Vitest + Supertest)
+- [x] Add unit tests for `src/lib/crypto.ts` (argon2 hashing, encryption, email hashing, prefix extraction)
+- [x] Add unit tests for `src/lib/schemas.ts` (Zod validation)
+- [x] Add integration tests for API routes (assertions, badges, webhooks)
+- [x] Add integration tests for auth middleware (valid key, invalid key, missing key)
+- [x] Add integration tests for public routes (verify page, JSON-LD endpoint, keys endpoint)
 - [ ] Add CLI tests (tenant create/list/delete, badge create/issue, assertion list)
-- [ ] Add webhook signature verification tests (valid, invalid, missing)
-- [ ] Add test script to `package.json`
+- [x] Add webhook signature verification tests (valid, invalid, missing)
+- [x] Add test script to `package.json`
 - [ ] Add CI pipeline (GitHub Actions) to run tests on push/PR
 
 ## Add linting and code formatting
