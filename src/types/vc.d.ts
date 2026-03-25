@@ -1,4 +1,4 @@
-declare module "@digitalcredentials/vc" {
+declare module '@digitalcredentials/vc' {
   export function issue(options: {
     credential: object;
     suite: any;
@@ -12,7 +12,7 @@ declare module "@digitalcredentials/vc" {
   }): Promise<{ verified: boolean; error?: any }>;
 
   export function defaultDocumentLoader(
-    url: string
+    url: string,
   ): Promise<{ contextUrl: string | null; documentUrl: string; document: any }>;
 
   export class CredentialIssuancePurpose {
@@ -20,7 +20,7 @@ declare module "@digitalcredentials/vc" {
   }
 }
 
-declare module "@digitalcredentials/ed25519-signature-2020" {
+declare module '@digitalcredentials/ed25519-signature-2020' {
   export class Ed25519Signature2020 {
     constructor(options?: { key?: any; signer?: any; verifier?: any });
   }
@@ -31,7 +31,7 @@ declare module "@digitalcredentials/ed25519-signature-2020" {
   };
 }
 
-declare module "@digitalcredentials/ed25519-verification-key-2020" {
+declare module '@digitalcredentials/ed25519-verification-key-2020' {
   export class Ed25519VerificationKey2020 {
     id: string;
     type: string;
@@ -48,10 +48,7 @@ declare module "@digitalcredentials/ed25519-verification-key-2020" {
       privateKeyMultibase?: string;
     }): Promise<Ed25519VerificationKey2020>;
 
-    export(options: {
-      publicKey?: boolean;
-      privateKey?: boolean;
-    }): {
+    export(options: { publicKey?: boolean; privateKey?: boolean }): {
       id: string;
       type: string;
       publicKeyMultibase: string;

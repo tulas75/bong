@@ -1,10 +1,10 @@
-import { Router, Request, Response } from "express";
-import { prisma } from "../lib/prisma.js";
-import { escapeHtml } from "../lib/crypto.js";
+import { Router, Request, Response } from 'express';
+import { prisma } from '../lib/prisma.js';
+import { escapeHtml } from '../lib/crypto.js';
 
 const router = Router();
 
-const APP_DOMAIN = process.env.APP_DOMAIN || "localhost:3000";
+const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
 const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
@@ -59,7 +59,7 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
 }
 
 // GET /verify/:assertionId - HTML verification page with OG tags
-router.get("/verify/:assertionId", async (req: Request, res: Response) => {
+router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   const assertionId = req.params.assertionId as string;
   const assertion = await prisma.assertion.findUnique({
     where: { id: assertionId },
@@ -67,7 +67,7 @@ router.get("/verify/:assertionId", async (req: Request, res: Response) => {
   });
 
   if (!assertion) {
-    res.status(404).send("<html><body><h1>Badge not found</h1></body></html>");
+    res.status(404).send('<html><body><h1>Badge not found</h1></body></html>');
     return;
   }
 
@@ -84,7 +84,7 @@ router.get("/verify/:assertionId", async (req: Request, res: Response) => {
     recipientEmail: assertion.recipientEmail,
     issuerName: badgeClass.tenant.name,
     issuerUrl: badgeClass.tenant.url,
-    issuedDate: assertion.issuedOn.toISOString().split("T")[0],
+    issuedDate: assertion.issuedOn.toISOString().split('T')[0],
     verifyUrl,
     jsonUrl,
   };
@@ -93,48 +93,45 @@ router.get("/verify/:assertionId", async (req: Request, res: Response) => {
   const html = renderTemplate(template, templateVars);
 
   res
-    .type("html")
+    .type('html')
     .set(
-      "Content-Security-Policy",
-      "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+      'Content-Security-Policy',
+      "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
     )
     .send(html);
 });
 
 // GET /api/v1/assertions/:assertionId - Raw JSON-LD credential
-router.get(
-  "/api/v1/assertions/:assertionId",
-  async (req: Request, res: Response) => {
-    const assertionId = req.params.assertionId as string;
-    const assertion = await prisma.assertion.findUnique({
-      where: { id: assertionId },
-    });
+router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response) => {
+  const assertionId = req.params.assertionId as string;
+  const assertion = await prisma.assertion.findUnique({
+    where: { id: assertionId },
+  });
 
-    if (!assertion) {
-      res.status(404).json({ error: "Assertion not found" });
-      return;
-    }
-
-    res.type("application/ld+json").json(assertion.payloadJson);
+  if (!assertion) {
+    res.status(404).json({ error: 'Assertion not found' });
+    return;
   }
-);
+
+  res.type('application/ld+json').json(assertion.payloadJson);
+});
 
 // GET /keys/:tenantId - Public key document
-router.get("/keys/:tenantId", async (req: Request, res: Response) => {
+router.get('/keys/:tenantId', async (req: Request, res: Response) => {
   const tenantId = req.params.tenantId as string;
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
   });
 
   if (!tenant) {
-    res.status(404).json({ error: "Tenant not found" });
+    res.status(404).json({ error: 'Tenant not found' });
     return;
   }
 
   const keyDocument = {
-    "@context": "https://w3id.org/security/suites/ed25519-2020/v1",
+    '@context': 'https://w3id.org/security/suites/ed25519-2020/v1',
     id: `https://${APP_DOMAIN}/keys/${tenant.id}#key-0`,
-    type: "Ed25519VerificationKey2020",
+    type: 'Ed25519VerificationKey2020',
     controller: tenant.url,
     publicKeyMultibase: tenant.publicKeyMultibase,
   };

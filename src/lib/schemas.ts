@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const createBadgeClassSchema = z.object({
   name: z.string().min(1),

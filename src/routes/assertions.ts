@@ -1,17 +1,17 @@
-import { Router, Response } from "express";
-import { v4 as uuidv4 } from "uuid";
-import { prisma } from "../lib/prisma.js";
-import { createAssertionSchema } from "../lib/schemas.js";
-import { issueCredential } from "../services/credential.js";
-import { AuthenticatedRequest } from "../middleware/auth.js";
-import { audit } from "../lib/logger.js";
+import { Router, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { prisma } from '../lib/prisma.js';
+import { createAssertionSchema } from '../lib/schemas.js';
+import { issueCredential } from '../services/credential.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+import { audit } from '../lib/logger.js';
 
 const router = Router();
 
-router.post("/", async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   const parsed = createAssertionSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
     return;
   }
 
@@ -22,7 +22,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   });
 
   if (!badgeClass) {
-    res.status(404).json({ error: "BadgeClass not found" });
+    res.status(404).json({ error: 'BadgeClass not found' });
     return;
   }
 
@@ -51,8 +51,8 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       },
     });
   } catch (err: any) {
-    if (err.code === "P2002") {
-      res.status(409).json({ error: "Badge already issued to this recipient" });
+    if (err.code === 'P2002') {
+      res.status(409).json({ error: 'Badge already issued to this recipient' });
       return;
     }
     throw err;
@@ -60,7 +60,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
 
   audit.info(
     { tenantId: req.tenant!.id, assertionId, badgeClassId, recipientEmail, ip: req.ip },
-    "assertion_issued"
+    'assertion_issued',
   );
 
   res.status(201).json(assertion);

@@ -1,10 +1,10 @@
-import * as vc from "@digitalcredentials/vc";
-import { Ed25519VerificationKey2020 } from "@digitalcredentials/ed25519-verification-key-2020";
-import { Ed25519Signature2020 } from "@digitalcredentials/ed25519-signature-2020";
-import { documentLoader } from "../lib/documentLoader.js";
-import { hashEmail } from "../lib/crypto.js";
+import * as vc from '@digitalcredentials/vc';
+import { Ed25519VerificationKey2020 } from '@digitalcredentials/ed25519-verification-key-2020';
+import { Ed25519Signature2020 } from '@digitalcredentials/ed25519-signature-2020';
+import { documentLoader } from '../lib/documentLoader.js';
+import { hashEmail } from '../lib/crypto.js';
 
-const APP_DOMAIN = process.env.APP_DOMAIN || "localhost:3000";
+const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
 interface IssueCredentialParams {
   assertionId: string;
@@ -27,51 +27,42 @@ interface IssueCredentialParams {
   issuedOn: Date;
 }
 
-export async function issueCredential(
-  params: IssueCredentialParams
-): Promise<object> {
-  const {
-    assertionId,
-    tenant,
-    badgeClass,
-    recipientEmail,
-    recipientName,
-    issuedOn,
-  } = params;
+export async function issueCredential(params: IssueCredentialParams): Promise<object> {
+  const { assertionId, tenant, badgeClass, recipientEmail, recipientName, issuedOn } = params;
 
   const verificationUrl = `https://${APP_DOMAIN}/verify/${assertionId}`;
   const keyUrl = `https://${APP_DOMAIN}/keys/${tenant.id}#key-0`;
 
   // Build the unsigned credential
   const credential = {
-    "@context": [
-      "https://www.w3.org/2018/credentials/v1",
-      "https://purl.imsglobal.org/spec/ob/v3p0/context.json",
+    '@context': [
+      'https://www.w3.org/2018/credentials/v1',
+      'https://purl.imsglobal.org/spec/ob/v3p0/context.json',
     ],
     id: verificationUrl,
-    type: ["VerifiableCredential", "OpenBadgeCredential"],
+    type: ['VerifiableCredential', 'OpenBadgeCredential'],
     issuer: {
       id: tenant.url,
-      type: "Profile",
+      type: 'Profile',
       name: tenant.name,
     },
     issuanceDate: issuedOn.toISOString(),
     credentialSubject: {
-      type: "AchievementSubject",
+      type: 'AchievementSubject',
       identifier: {
-        type: "IdentityObject",
+        type: 'IdentityObject',
         identityHash: hashEmail(recipientEmail),
-        identityType: "emailAddress",
+        identityType: 'emailAddress',
         hashed: true,
       },
       achievement: {
         id: `urn:uuid:${badgeClass.id}`,
-        type: "Achievement",
+        type: 'Achievement',
         name: badgeClass.name,
         description: badgeClass.description,
         image: {
           id: badgeClass.imageUrl,
-          type: "Image",
+          type: 'Image',
         },
         criteria: {
           narrative: badgeClass.criteria,
@@ -84,7 +75,7 @@ export async function issueCredential(
   // Load the key pair
   const keyPair = await Ed25519VerificationKey2020.from({
     id: keyUrl,
-    type: "Ed25519VerificationKey2020",
+    type: 'Ed25519VerificationKey2020',
     controller: tenant.url,
     publicKeyMultibase: tenant.publicKeyMultibase,
     privateKeyMultibase: tenant.privateKeyMultibase,
