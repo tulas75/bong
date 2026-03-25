@@ -29,6 +29,18 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
     .details dt { font-weight: 600; color: #666; margin-top: 12px; }
     .details dd { margin-left: 0; }
     a { color: #3b82f6; }
+    .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center; }
+    .modal-overlay.active { display:flex; }
+    .modal { background:#1e1e1e; border-radius:12px; width:90%; max-width:700px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.4); }
+    .modal-header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #333; }
+    .modal-header h2 { color:#fff; font-size:16px; margin:0; }
+    .modal-close { background:none; border:none; color:#999; font-size:24px; cursor:pointer; padding:0 4px; }
+    .modal-close:hover { color:#fff; }
+    .modal-body { overflow:auto; padding:16px 20px; flex:1; }
+    .modal-body pre { margin:0; color:#d4d4d4; font-family:'SF Mono',Monaco,Consolas,'Courier New',monospace; font-size:13px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+    .modal-footer { padding:12px 20px; border-top:1px solid #333; text-align:right; }
+    .btn-copy { background:#3b82f6; color:#fff; border:none; padding:8px 20px; border-radius:6px; font-size:14px; cursor:pointer; font-weight:500; }
+    .btn-copy:hover { background:#2563eb; }
   </style>
 </head>
 <body>
@@ -50,9 +62,66 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
       <dd>{{badgeDescription}}</dd>
     </dl>
     <p style="margin-top: 24px; font-size: 0.85em; color: #999;">
-      <a href="{{jsonUrl}}">View raw Verifiable Credential (JSON-LD)</a>
+      <a href="#" id="view-json-link">View raw Verifiable Credential (JSON-LD)</a>
     </p>
   </div>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Verifiable Credential (JSON-LD)</h2>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <pre><code id="json-display"></code></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-copy" id="btn-copy">Copy to Clipboard</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="vc-json">{{credentialJson}}</script>
+  <script>
+    (function() {
+      var overlay = document.getElementById('modal-overlay');
+      var jsonDisplay = document.getElementById('json-display');
+      var btnCopy = document.getElementById('btn-copy');
+      var jsonStr = '';
+
+      document.getElementById('view-json-link').addEventListener('click', function(e) {
+        e.preventDefault();
+        try {
+          var raw = document.getElementById('vc-json').textContent;
+          var data = JSON.parse(raw);
+          jsonStr = JSON.stringify(data, null, 2);
+          jsonDisplay.textContent = jsonStr;
+        } catch(err) {
+          jsonDisplay.textContent = 'Error loading credential data';
+        }
+        overlay.classList.add('active');
+      });
+
+      document.getElementById('modal-close').addEventListener('click', function() {
+        overlay.classList.remove('active');
+      });
+
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.classList.remove('active');
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') overlay.classList.remove('active');
+      });
+
+      btnCopy.addEventListener('click', function() {
+        navigator.clipboard.writeText(jsonStr).then(function() {
+          btnCopy.textContent = 'Copied!';
+          setTimeout(function() { btnCopy.textContent = 'Copy to Clipboard'; }, 2000);
+        });
+      });
+    })();
+  </script>
 </body>
 </html>`;
 
@@ -62,10 +131,12 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
   });
 }
 
+const RAW_HTML_KEYS = new Set(['statusHtml', 'expirationHtml', 'credentialJson']);
+
 function renderRawHtml(template: string, vars: Record<string, string>): string {
-  // First pass: render raw HTML blocks (not escaped)
+  // First pass: render raw HTML/JSON blocks (not escaped)
   let result = template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    if (key === 'statusHtml' || key === 'expirationHtml') {
+    if (RAW_HTML_KEYS.has(key)) {
       return vars[key] !== undefined ? vars[key] : '';
     }
     return match;
@@ -128,6 +199,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     jsonUrl,
     statusHtml,
     expirationHtml,
+    credentialJson: JSON.stringify(assertion.payloadJson),
   };
 
   const template = badgeClass.templateHtml || DEFAULT_TEMPLATE;
@@ -137,7 +209,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     .type('html')
     .set(
       'Content-Security-Policy',
-      "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+      "default-src 'none'; script-src 'unsafe-inline'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
     )
     .send(html);
 });

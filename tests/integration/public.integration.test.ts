@@ -48,6 +48,7 @@ describe('GET /verify/:assertionId', () => {
     const res = await request(app).get('/verify/72910be6-cbde-441c-b602-484884dbc28e');
 
     expect(res.headers['content-security-policy']).toContain("default-src 'none'");
+    expect(res.headers['content-security-policy']).toContain("script-src 'unsafe-inline'");
   });
 
   it('escapes HTML in template variables', async () => {
@@ -110,6 +111,17 @@ describe('GET /verify/:assertionId', () => {
     expect(res.text).toContain('Verified Credential');
     expect(res.text).toContain('2030-12-31');
     expect(res.text).toContain('Expires');
+  });
+
+  it('embeds credential JSON for modal viewer', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertionWithRelations);
+
+    const res = await request(app).get('/verify/72910be6-cbde-441c-b602-484884dbc28e');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('id="vc-json"');
+    expect(res.text).toContain('modal-overlay');
+    expect(res.text).toContain('Copy to Clipboard');
   });
 
   it('uses custom template when present', async () => {

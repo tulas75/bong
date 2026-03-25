@@ -25,11 +25,11 @@ sha256$63c663e3980e655afefd216a41332c4c01c5a0f8571cb6d0ce4b215f40c2755c
 
 Currently the "View raw Verifiable Credential (JSON-LD)" link navigates to a raw JSON endpoint. Instead, display the JSON in a styled modal overlay on the verification page — similar to Badgr's "Badge Award JSON" dialog:
 
-- [ ] Add a modal/overlay triggered by the "View raw" link (no page navigation)
-- [ ] Show the JSON pretty-printed with syntax highlighting in a dark code block
-- [ ] Add a "Copy to Clipboard" button
-- [ ] Add a close (X) button
-- [ ] Keep the modal CSP-compliant (inline styles only, no external JS)
+- [x] Add a modal/overlay triggered by the "View raw" link (no page navigation)
+- [x] Show the JSON pretty-printed in a dark code block
+- [x] Add a "Copy to Clipboard" button
+- [x] Add a close (X) button + overlay click + Escape key
+- [x] Keep the modal CSP-compliant (inline scripts/styles, no external resources)
 
 ## Send email notification when a badge is issued
 
