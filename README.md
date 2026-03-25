@@ -127,6 +127,12 @@ bong stats
 | `ENCRYPTION_KEY` | 256-bit hex key for encrypting private keys at rest | **(required)** |
 | `CORS_ORIGINS` | Comma-separated allowed origins (e.g., `https://myapp.com`) | empty (no CORS) |
 | `LOG_LEVEL` | Pino log level (`debug`, `info`, `warn`, `error`) | `info` |
+| `SMTP_HOST` | SMTP server hostname (email disabled if empty) | empty (no email) |
+| `SMTP_PORT` | SMTP server port | `587` |
+| `SMTP_SECURE` | Use TLS (`true`/`false`) | `false` |
+| `SMTP_USER` | SMTP username | empty |
+| `SMTP_PASS` | SMTP password | empty |
+| `SMTP_FROM` | Sender address for badge emails | `"BONG Badges <badges@example.com>"` |
 
 ## API Endpoints
 
@@ -206,6 +212,10 @@ If the tenant has a webhook secret, the request must include an `X-Webhook-Signa
 | `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/ld+json`) |
 | `GET /keys/:tenantId` | Tenant's public key document (Ed25519VerificationKey2020) |
 | `GET /health` | Health check |
+
+## Email Notifications
+
+When a badge is issued (via API, webhook, or CLI), an email is automatically sent to the recipient with the badge name, issuer, and a link to the verification page. Configure the `SMTP_*` environment variables to enable. If `SMTP_HOST` is not set, emails are silently skipped. Email failures are logged but never block badge issuance.
 
 ## Security
 

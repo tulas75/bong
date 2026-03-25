@@ -4,8 +4,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../lib/prisma.js';
 import { courseCompletionWebhookSchema } from '../lib/schemas.js';
 import { issueCredential } from '../services/credential.js';
+import { sendBadgeIssuedEmail } from '../services/email.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { audit } from '../lib/logger.js';
+
+const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
 const router = Router();
 
@@ -102,6 +105,16 @@ router.post('/course-completed', async (req: AuthenticatedRequest, res: Response
     },
     'assertion_issued_via_webhook',
   );
+
+  await sendBadgeIssuedEmail({
+    recipientEmail,
+    recipientName,
+    badgeName: badgeClass.name,
+    badgeDescription: badgeClass.description,
+    badgeImageUrl: badgeClass.imageUrl,
+    issuerName: req.tenant!.name,
+    verifyUrl: `https://${APP_DOMAIN}/verify/${assertion.id}`,
+  });
 
   res.status(201).json(assertion);
 });

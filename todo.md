@@ -38,11 +38,11 @@ Currently the "View raw Verifiable Credential (JSON-LD)" link navigates to a raw
 
 When a badge is issued (via API, webhook, or CLI), send an email to the recipient with:
 
-- [ ] Choose an email provider/library (e.g. Nodemailer, SendGrid, AWS SES)
-- [ ] Add SMTP/email configuration to `.env` (host, port, credentials, from address)
-- [ ] Create an email template with badge name, issuer, and verification link
-- [ ] Send email after successful assertion creation in all issuance paths (API, webhook, CLI)
-- [ ] Handle failures gracefully (log error, don't block badge issuance if email fails)
+- [x] Choose an email provider/library (Nodemailer)
+- [x] Add SMTP/email configuration to `.env` (host, port, credentials, from address)
+- [x] Create an email template with badge name, issuer, and verification link
+- [x] Send email after successful assertion creation in all issuance paths (API, webhook, CLI)
+- [x] Handle failures gracefully (log error, don't block badge issuance if email fails)
 
 ## Migrate tsconfig to ES2022 modules
 

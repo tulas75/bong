@@ -3,8 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../lib/prisma.js';
 import { createAssertionSchema, revokeAssertionSchema } from '../lib/schemas.js';
 import { issueCredential } from '../services/credential.js';
+import { sendBadgeIssuedEmail } from '../services/email.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { audit } from '../lib/logger.js';
+
+const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
 const router = Router();
 
@@ -65,6 +68,17 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     { tenantId: req.tenant!.id, assertionId, badgeClassId, recipientEmail, ip: req.ip },
     'assertion_issued',
   );
+
+  await sendBadgeIssuedEmail({
+    recipientEmail,
+    recipientName,
+    badgeName: badgeClass.name,
+    badgeDescription: badgeClass.description,
+    badgeImageUrl: badgeClass.imageUrl,
+    issuerName: req.tenant!.name,
+    verifyUrl: `https://${APP_DOMAIN}/verify/${assertion.id}`,
+    expiresAt: expiresAt || null,
+  });
 
   res.status(201).json(assertion);
 });

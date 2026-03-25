@@ -7,6 +7,7 @@ import { Ed25519VerificationKey2020 } from '@digitalcredentials/ed25519-verifica
 import { randomUUID } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { issueCredential } from './services/credential.js';
+import { sendBadgeIssuedEmail } from './services/email.js';
 import {
   encryptField,
   decryptField,
@@ -286,13 +287,26 @@ badge
     });
 
     const appDomain = process.env.APP_DOMAIN || 'localhost:3000';
+    const verifyUrl = `https://${appDomain}/verify/${assertion.id}`;
+
+    await sendBadgeIssuedEmail({
+      recipientEmail: opts.email,
+      recipientName: opts.name,
+      badgeName: badgeClass.name,
+      badgeDescription: badgeClass.description,
+      badgeImageUrl: badgeClass.imageUrl,
+      issuerName: badgeClass.tenant.name,
+      verifyUrl,
+      expiresAt: expiresAt || null,
+    });
+
     console.log('\nBadge issued:');
     console.log(`  Assertion ID: ${assertion.id}`);
     console.log(`  Badge:        ${badgeClass.name}`);
     console.log(`  Recipient:    ${opts.name} <${opts.email}>`);
     console.log(`  Issued On:    ${issuedOn.toISOString().split('T')[0]}`);
     if (expiresAt) console.log(`  Expires:      ${expiresAt.toISOString().split('T')[0]}`);
-    console.log(`  Verify URL:   https://${appDomain}/verify/${assertion.id}`);
+    console.log(`  Verify URL:   ${verifyUrl}`);
   });
 
 // ─── Assertion commands ──────────────────────────────────────────

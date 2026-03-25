@@ -16,6 +16,10 @@ vi.mock('../../src/services/credential', () => ({
   }),
 }));
 
+vi.mock('../../src/services/email', () => ({
+  sendBadgeIssuedEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
 import app from '../../src/app';
 
 describe('requireApiKey middleware', () => {
