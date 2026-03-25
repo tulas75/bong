@@ -80,12 +80,12 @@ The project currently has no automated tests. Add a test framework and comprehen
 **Priority:** Medium
 **Related:** `package.json`
 
-- [ ] Set up ESLint with TypeScript plugin
-- [ ] Set up Prettier for consistent formatting
-- [ ] Add `lint` and `format` scripts to `package.json`
-- [ ] Add pre-commit hook (e.g. via Husky + lint-staged)
-- [ ] Fix any existing lint issues
-- [ ] Add lint check to CI pipeline
+- [x] Set up ESLint with TypeScript plugin
+- [x] Set up Prettier for consistent formatting
+- [x] Add `lint` and `format` scripts to `package.json`
+- [x] Add pre-commit hook (e.g. via Husky + lint-staged)
+- [x] Fix any existing lint issues
+- [x] Add lint check to CI pipeline
 
 ## Badge revocation
 
