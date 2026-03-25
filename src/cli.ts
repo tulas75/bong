@@ -274,17 +274,26 @@ badge
       expiresAt,
     });
 
-    const assertion = await prisma.assertion.create({
-      data: {
-        id: assertionId,
-        badgeClassId: badgeId,
-        recipientEmail: opts.email,
-        recipientName: opts.name,
-        issuedOn,
-        expiresAt: expiresAt || null,
-        payloadJson: signedCredential as any,
-      },
-    });
+    let assertion;
+    try {
+      assertion = await prisma.assertion.create({
+        data: {
+          id: assertionId,
+          badgeClassId: badgeId,
+          recipientEmail: opts.email,
+          recipientName: opts.name,
+          issuedOn,
+          expiresAt: expiresAt || null,
+          payloadJson: signedCredential as any,
+        },
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        console.error(`\nBadge already issued to "${opts.email}" for this badge class.`);
+        process.exit(1);
+      }
+      throw err;
+    }
 
     const appDomain = process.env.APP_DOMAIN || 'localhost:3000';
     const verifyUrl = `https://${appDomain}/verify/${assertion.id}`;
