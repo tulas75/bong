@@ -86,4 +86,15 @@ describe('issueCredential', () => {
     const result = (await issueCredential(makeParams())) as any;
     expect(result.id).toBe('https://test.example.com/verify/72910be6-cbde-441c-b602-484884dbc28e');
   });
+
+  it('includes expirationDate when expiresAt is provided', async () => {
+    const expiresAt = new Date('2027-06-01T00:00:00Z');
+    const result = (await issueCredential(makeParams({ expiresAt }))) as any;
+    expect(result.expirationDate).toBe('2027-06-01T00:00:00.000Z');
+  });
+
+  it('omits expirationDate when expiresAt is not provided', async () => {
+    const result = (await issueCredential(makeParams())) as any;
+    expect(result.expirationDate).toBeUndefined();
+  });
 });

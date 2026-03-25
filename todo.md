@@ -94,11 +94,11 @@ The project currently has no automated tests. Add a test framework and comprehen
 
 Ability to revoke issued badges (e.g. if issued by mistake or recipient no longer qualifies). Essential for any credentialing system.
 
-- [ ] Add `revokedAt` and `revocationReason` fields to Assertion model
-- [ ] Add `POST /api/v1/assertions/:id/revoke` endpoint
-- [ ] Add `bong badge revoke <assertionId>` CLI command
-- [ ] Show revocation status on the verification page
-- [ ] Include revocation status in JSON-LD credential response
+- [x] Add `revokedAt` and `revocationReason` fields to Assertion model
+- [x] Add `POST /api/v1/assertions/:id/revoke` endpoint
+- [x] Add `bong assertion revoke <assertionId> --reason` CLI command
+- [x] Show revocation status on the verification page
+- [x] Include revocation status in JSON-LD credential response
 
 ## Badge expiration
 
@@ -107,10 +107,10 @@ Ability to revoke issued badges (e.g. if issued by mistake or recipient no longe
 
 Support time-limited badges that expire after a set duration.
 
-- [ ] Add optional `expiresAt` field to Assertion model
-- [ ] Add optional `--expires <duration>` flag to badge issuance (e.g. `--expires 1y`, `--expires 6m`)
-- [ ] Include `expirationDate` in the Verifiable Credential
-- [ ] Show expiration status on verification page (valid / expired)
+- [x] Add optional `expiresAt` field to Assertion model
+- [x] Add optional `--expires <date>` flag to badge issuance (ISO 8601 date)
+- [x] Include `expirationDate` in the Verifiable Credential
+- [x] Show expiration status on verification page (valid / expired)
 
 ## Bulk badge issuance via CSV
 

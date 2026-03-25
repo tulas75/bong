@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createBadgeClassSchema,
   createAssertionSchema,
+  revokeAssertionSchema,
   courseCompletionWebhookSchema,
 } from '../../src/lib/schemas';
 
@@ -81,6 +82,32 @@ describe('createAssertionSchema', () => {
 
   it('rejects empty body', () => {
     expect(createAssertionSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('accepts optional expiresAt as ISO datetime', () => {
+    expect(
+      createAssertionSchema.safeParse({ ...valid, expiresAt: '2027-01-01T00:00:00Z' }).success,
+    ).toBe(true);
+  });
+
+  it('rejects invalid expiresAt format', () => {
+    expect(createAssertionSchema.safeParse({ ...valid, expiresAt: 'not-a-date' }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe('revokeAssertionSchema', () => {
+  it('accepts valid reason', () => {
+    expect(revokeAssertionSchema.safeParse({ reason: 'Issued by mistake' }).success).toBe(true);
+  });
+
+  it('rejects empty reason', () => {
+    expect(revokeAssertionSchema.safeParse({ reason: '' }).success).toBe(false);
+  });
+
+  it('rejects missing reason', () => {
+    expect(revokeAssertionSchema.safeParse({}).success).toBe(false);
   });
 });
 

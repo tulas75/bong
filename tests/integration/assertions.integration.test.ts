@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { mockPrisma } from '../helpers/mockPrisma';
 import { setupAuthenticatedTenant, TEST_API_KEY } from '../helpers/authHelper';
-import { makeBadgeClass, makeAssertion } from '../helpers/fixtures';
+import { makeTenant, makeBadgeClass, makeAssertion } from '../helpers/fixtures';
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: mockPrisma,
@@ -101,5 +101,103 @@ describe('POST /api/v1/assertions', () => {
       .send({});
 
     expect(res.status).toBe(400);
+  });
+
+  it('accepts optional expiresAt', async () => {
+    await setupAuthenticatedTenant();
+    mockPrisma.badgeClass.findFirst.mockResolvedValue(makeBadgeClass());
+    mockPrisma.assertion.create.mockResolvedValue(
+      makeAssertion({ expiresAt: new Date('2027-01-01') }),
+    );
+
+    const res = await request(app)
+      .post('/api/v1/assertions')
+      .set('X-API-Key', TEST_API_KEY)
+      .send({ ...validBody, expiresAt: '2027-01-01T00:00:00Z' });
+
+    expect(res.status).toBe(201);
+  });
+});
+
+describe('POST /api/v1/assertions/:id/revoke', () => {
+  const assertionId = '72910be6-cbde-441c-b602-484884dbc28e';
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns 200 on successful revocation', async () => {
+    const tenant = await setupAuthenticatedTenant();
+    const assertion = makeAssertion({ badgeClass: makeBadgeClass({ tenantId: tenant.id }) });
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertion);
+    mockPrisma.assertion.update.mockResolvedValue({
+      ...assertion,
+      revokedAt: new Date(),
+      revocationReason: 'Issued by mistake',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/assertions/${assertionId}/revoke`)
+      .set('X-API-Key', TEST_API_KEY)
+      .send({ reason: 'Issued by mistake' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.revocationReason).toBe('Issued by mistake');
+  });
+
+  it('returns 400 when reason is missing', async () => {
+    await setupAuthenticatedTenant();
+
+    const res = await request(app)
+      .post(`/api/v1/assertions/${assertionId}/revoke`)
+      .set('X-API-Key', TEST_API_KEY)
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 when assertion not found', async () => {
+    await setupAuthenticatedTenant();
+    mockPrisma.assertion.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .post(`/api/v1/assertions/${assertionId}/revoke`)
+      .set('X-API-Key', TEST_API_KEY)
+      .send({ reason: 'test' });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 when assertion belongs to different tenant', async () => {
+    await setupAuthenticatedTenant();
+    const assertion = makeAssertion({
+      badgeClass: makeBadgeClass({ tenantId: 'different-tenant-id' }),
+    });
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertion);
+
+    const res = await request(app)
+      .post(`/api/v1/assertions/${assertionId}/revoke`)
+      .set('X-API-Key', TEST_API_KEY)
+      .send({ reason: 'test' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 409 when already revoked', async () => {
+    const tenant = await setupAuthenticatedTenant();
+    const assertion = makeAssertion({
+      revokedAt: new Date(),
+      revocationReason: 'Already revoked',
+      badgeClass: makeBadgeClass({ tenantId: tenant.id }),
+    });
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertion);
+
+    const res = await request(app)
+      .post(`/api/v1/assertions/${assertionId}/revoke`)
+      .set('X-API-Key', TEST_API_KEY)
+      .send({ reason: 'test' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('Assertion already revoked');
   });
 });

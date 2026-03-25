@@ -67,6 +67,51 @@ describe('GET /verify/:assertionId', () => {
     expect(res.text).toContain('&lt;script&gt;');
   });
 
+  it('shows Revoked status for revoked assertion', async () => {
+    const revokedAssertion = {
+      ...assertionWithRelations,
+      revokedAt: new Date('2026-03-01'),
+      revocationReason: 'Issued by mistake',
+    };
+    mockPrisma.assertion.findUnique.mockResolvedValue(revokedAssertion);
+
+    const res = await request(app).get('/verify/72910be6-cbde-441c-b602-484884dbc28e');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Revoked');
+    expect(res.text).toContain('Issued by mistake');
+    expect(res.text).not.toContain('Verified Credential');
+  });
+
+  it('shows Expired status for expired assertion', async () => {
+    const expiredAssertion = {
+      ...assertionWithRelations,
+      expiresAt: new Date('2025-01-01'),
+    };
+    mockPrisma.assertion.findUnique.mockResolvedValue(expiredAssertion);
+
+    const res = await request(app).get('/verify/72910be6-cbde-441c-b602-484884dbc28e');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Expired');
+    expect(res.text).not.toContain('Verified Credential');
+  });
+
+  it('shows expiration date when set and not expired', async () => {
+    const futureExpiry = {
+      ...assertionWithRelations,
+      expiresAt: new Date('2030-12-31'),
+    };
+    mockPrisma.assertion.findUnique.mockResolvedValue(futureExpiry);
+
+    const res = await request(app).get('/verify/72910be6-cbde-441c-b602-484884dbc28e');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Verified Credential');
+    expect(res.text).toContain('2030-12-31');
+    expect(res.text).toContain('Expires');
+  });
+
   it('uses custom template when present', async () => {
     const customAssertion = {
       ...assertionWithRelations,
@@ -106,6 +151,21 @@ describe('GET /api/v1/assertions/:assertionId (public)', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Assertion not found');
+  });
+
+  it('includes credentialStatus when revoked', async () => {
+    const revoked = makeAssertion({
+      revokedAt: new Date('2026-03-01T00:00:00Z'),
+      revocationReason: 'Fraudulent',
+    });
+    mockPrisma.assertion.findUnique.mockResolvedValue(revoked);
+
+    const res = await request(app).get('/api/v1/assertions/72910be6-cbde-441c-b602-484884dbc28e');
+
+    expect(res.status).toBe(200);
+    expect(res.body.credentialStatus).toBeDefined();
+    expect(res.body.credentialStatus.revoked).toBe(true);
+    expect(res.body.credentialStatus.reason).toBe('Fraudulent');
   });
 });
 

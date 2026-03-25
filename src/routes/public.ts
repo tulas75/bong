@@ -21,7 +21,10 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f5f5f5; }
     .card { background: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
     .badge-image { max-width: 200px; border-radius: 8px; margin-bottom: 16px; }
-    .verified { color: #22c55e; font-weight: 600; }
+    .status-verified { color: #22c55e; font-weight: 600; }
+    .status-revoked { color: #ef4444; font-weight: 600; }
+    .status-expired { color: #f59e0b; font-weight: 600; }
+    .revocation-reason { color: #ef4444; font-size: 0.9em; margin-top: 4px; }
     .details { text-align: left; margin-top: 24px; }
     .details dt { font-weight: 600; color: #666; margin-top: 12px; }
     .details dd { margin-left: 0; }
@@ -32,7 +35,7 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
   <div class="card">
     <img src="{{badgeImageUrl}}" alt="{{badgeName}}" class="badge-image" />
     <h1>{{badgeName}}</h1>
-    <p class="verified">Verified Credential</p>
+    {{statusHtml}}
     <dl class="details">
       <dt>Recipient</dt>
       <dd>{{recipientName}}</dd>
@@ -40,6 +43,7 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
       <dd><a href="{{issuerUrl}}">{{issuerName}}</a></dd>
       <dt>Issued On</dt>
       <dd>{{issuedDate}}</dd>
+      {{expirationHtml}}
       <dt>Criteria</dt>
       <dd>{{badgeCriteria}}</dd>
       <dt>Description</dt>
@@ -56,6 +60,21 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     return vars[key] !== undefined ? escapeHtml(vars[key]) : match;
   });
+}
+
+function renderRawHtml(template: string, vars: Record<string, string>): string {
+  // First pass: render raw HTML blocks (not escaped)
+  let result = template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    if (key === 'statusHtml' || key === 'expirationHtml') {
+      return vars[key] !== undefined ? vars[key] : '';
+    }
+    return match;
+  });
+  // Second pass: render escaped variables
+  result = result.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    return vars[key] !== undefined ? escapeHtml(vars[key]) : match;
+  });
+  return result;
 }
 
 // GET /verify/:assertionId - HTML verification page with OG tags
@@ -75,6 +94,26 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   const verifyUrl = `https://${APP_DOMAIN}/verify/${assertion.id}`;
   const jsonUrl = `https://${APP_DOMAIN}/api/v1/assertions/${assertion.id}`;
 
+  // Determine status
+  const isRevoked = !!assertion.revokedAt;
+  const isExpired = !!assertion.expiresAt && assertion.expiresAt < new Date();
+
+  let statusHtml: string;
+  if (isRevoked) {
+    const reason = assertion.revocationReason ? escapeHtml(assertion.revocationReason) : '';
+    statusHtml = `<p class="status-revoked">Revoked</p>`;
+    if (reason) statusHtml += `<p class="revocation-reason">Reason: ${reason}</p>`;
+  } else if (isExpired) {
+    statusHtml = `<p class="status-expired">Expired</p>`;
+  } else {
+    statusHtml = `<p class="status-verified">Verified Credential</p>`;
+  }
+
+  let expirationHtml = '';
+  if (assertion.expiresAt) {
+    expirationHtml = `<dt>Expires</dt><dd>${escapeHtml(assertion.expiresAt.toISOString().split('T')[0])}</dd>`;
+  }
+
   const templateVars: Record<string, string> = {
     badgeName: badgeClass.name,
     badgeDescription: badgeClass.description,
@@ -87,10 +126,12 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     issuedDate: assertion.issuedOn.toISOString().split('T')[0],
     verifyUrl,
     jsonUrl,
+    statusHtml,
+    expirationHtml,
   };
 
   const template = badgeClass.templateHtml || DEFAULT_TEMPLATE;
-  const html = renderTemplate(template, templateVars);
+  const html = renderRawHtml(template, templateVars);
 
   res
     .type('html')
@@ -113,7 +154,18 @@ router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response
     return;
   }
 
-  res.type('application/ld+json').json(assertion.payloadJson);
+  const payload = assertion.payloadJson as Record<string, any>;
+
+  if (assertion.revokedAt) {
+    payload.credentialStatus = {
+      type: 'RevocationStatus',
+      revoked: true,
+      revokedAt: assertion.revokedAt.toISOString(),
+      ...(assertion.revocationReason ? { reason: assertion.revocationReason } : {}),
+    };
+  }
+
+  res.type('application/ld+json').json(payload);
 });
 
 // GET /keys/:tenantId - Public key document

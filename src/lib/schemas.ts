@@ -13,6 +13,11 @@ export const createAssertionSchema = z.object({
   badgeClassId: z.string().uuid(),
   recipientEmail: z.string().email(),
   recipientName: z.string().min(1),
+  expiresAt: z.string().datetime().optional(),
+});
+
+export const revokeAssertionSchema = z.object({
+  reason: z.string().min(1),
 });
 
 export const courseCompletionWebhookSchema = z.object({

@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../lib/prisma.js';
-import { createAssertionSchema } from '../lib/schemas.js';
+import { createAssertionSchema, revokeAssertionSchema } from '../lib/schemas.js';
 import { issueCredential } from '../services/credential.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { audit } from '../lib/logger.js';
@@ -15,7 +15,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     return;
   }
 
-  const { badgeClassId, recipientEmail, recipientName } = parsed.data;
+  const { badgeClassId, recipientEmail, recipientName, expiresAt: expiresAtStr } = parsed.data;
 
   const badgeClass = await prisma.badgeClass.findFirst({
     where: { id: badgeClassId, tenantId: req.tenant!.id },
@@ -28,6 +28,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
   const assertionId = uuidv4();
   const issuedOn = new Date();
+  const expiresAt = expiresAtStr ? new Date(expiresAtStr) : undefined;
 
   const signedCredential = await issueCredential({
     assertionId,
@@ -36,6 +37,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     recipientEmail,
     recipientName,
     issuedOn,
+    expiresAt,
   });
 
   let assertion;
@@ -47,6 +49,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
         recipientEmail,
         recipientName,
         issuedOn,
+        expiresAt: expiresAt || null,
         payloadJson: signedCredential as any,
       },
     });
@@ -64,6 +67,51 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   );
 
   res.status(201).json(assertion);
+});
+
+router.post('/:id/revoke', async (req: AuthenticatedRequest, res: Response) => {
+  const assertionId = req.params.id as string;
+
+  const parsed = revokeAssertionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+    return;
+  }
+
+  const assertion = await prisma.assertion.findUnique({
+    where: { id: assertionId },
+    include: { badgeClass: true },
+  });
+
+  if (!assertion) {
+    res.status(404).json({ error: 'Assertion not found' });
+    return;
+  }
+
+  if (assertion.badgeClass.tenantId !== req.tenant!.id) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  if (assertion.revokedAt) {
+    res.status(409).json({ error: 'Assertion already revoked' });
+    return;
+  }
+
+  const updated = await prisma.assertion.update({
+    where: { id: assertionId },
+    data: {
+      revokedAt: new Date(),
+      revocationReason: parsed.data.reason,
+    },
+  });
+
+  audit.info(
+    { tenantId: req.tenant!.id, assertionId, reason: parsed.data.reason, ip: req.ip },
+    'assertion_revoked',
+  );
+
+  res.json(updated);
 });
 
 export default router;

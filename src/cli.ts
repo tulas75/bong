@@ -242,6 +242,7 @@ badge
   .description('Issue a badge to a user')
   .requiredOption('--email <email>', 'Recipient email')
   .requiredOption('--name <name>', 'Recipient name')
+  .option('--expires <date>', 'Expiration date (ISO 8601, e.g. 2027-01-01)')
   .action(async (badgeId, opts) => {
     const badgeClass = await prisma.badgeClass.findUnique({
       where: { id: badgeId },
@@ -260,6 +261,7 @@ badge
 
     const assertionId = uuidv4();
     const issuedOn = new Date();
+    const expiresAt = opts.expires ? new Date(opts.expires) : undefined;
 
     const signedCredential = await issueCredential({
       assertionId,
@@ -268,6 +270,7 @@ badge
       recipientEmail: opts.email,
       recipientName: opts.name,
       issuedOn,
+      expiresAt,
     });
 
     const assertion = await prisma.assertion.create({
@@ -277,6 +280,7 @@ badge
         recipientEmail: opts.email,
         recipientName: opts.name,
         issuedOn,
+        expiresAt: expiresAt || null,
         payloadJson: signedCredential as any,
       },
     });
@@ -287,12 +291,43 @@ badge
     console.log(`  Badge:        ${badgeClass.name}`);
     console.log(`  Recipient:    ${opts.name} <${opts.email}>`);
     console.log(`  Issued On:    ${issuedOn.toISOString().split('T')[0]}`);
+    if (expiresAt) console.log(`  Expires:      ${expiresAt.toISOString().split('T')[0]}`);
     console.log(`  Verify URL:   https://${appDomain}/verify/${assertion.id}`);
   });
 
 // ─── Assertion commands ──────────────────────────────────────────
 
 const assertion = program.command('assertion').description('Manage assertions');
+
+assertion
+  .command('revoke <assertionId>')
+  .description('Revoke an issued assertion')
+  .requiredOption('--reason <reason>', 'Reason for revocation')
+  .action(async (assertionId, opts) => {
+    const a = await prisma.assertion.findUnique({
+      where: { id: assertionId },
+      include: { badgeClass: true },
+    });
+    if (!a) {
+      console.error(`Assertion "${assertionId}" not found.`);
+      process.exit(1);
+    }
+    if (a.revokedAt) {
+      console.error(`Assertion already revoked on ${a.revokedAt.toISOString().split('T')[0]}.`);
+      process.exit(1);
+    }
+
+    await prisma.assertion.update({
+      where: { id: assertionId },
+      data: {
+        revokedAt: new Date(),
+        revocationReason: opts.reason,
+      },
+    });
+
+    console.log(`\nAssertion "${assertionId}" revoked.`);
+    console.log(`  Reason: ${opts.reason}`);
+  });
 
 assertion
   .command('list')
@@ -318,12 +353,17 @@ assertion
     const appDomain = process.env.APP_DOMAIN || 'localhost:3000';
 
     console.log(
-      `\n${'Recipient'.padEnd(30)} ${'Badge'.padEnd(25)} ${'Issued'.padEnd(12)} Verify URL`,
+      `\n${'Recipient'.padEnd(30)} ${'Badge'.padEnd(25)} ${'Issued'.padEnd(12)} ${'Status'.padEnd(12)} Verify URL`,
     );
-    console.log('─'.repeat(120));
+    console.log('─'.repeat(140));
     for (const a of assertions) {
+      let status = 'active';
+      if (a.revokedAt) status = 'REVOKED';
+      else if (a.expiresAt && a.expiresAt < new Date()) status = 'EXPIRED';
+      else if (a.expiresAt) status = `exp ${a.expiresAt.toISOString().split('T')[0]}`;
+
       console.log(
-        `${a.recipientName.padEnd(30)} ${a.badgeClass.name.padEnd(25)} ${a.issuedOn.toISOString().split('T')[0].padEnd(12)} https://${appDomain}/verify/${a.id}`,
+        `${a.recipientName.padEnd(30)} ${a.badgeClass.name.padEnd(25)} ${a.issuedOn.toISOString().split('T')[0].padEnd(12)} ${status.padEnd(12)} https://${appDomain}/verify/${a.id}`,
       );
     }
     console.log(`\nTotal: ${assertions.length}`);

@@ -35,6 +35,9 @@ export function makeAssertion(overrides: Record<string, any> = {}) {
     recipientEmail: 'user@example.com',
     recipientName: 'Test User',
     issuedOn: new Date('2026-01-15'),
+    expiresAt: null,
+    revokedAt: null,
+    revocationReason: null,
     payloadJson: {
       '@context': ['https://www.w3.org/2018/credentials/v1'],
       type: ['VerifiableCredential', 'OpenBadgeCredential'],

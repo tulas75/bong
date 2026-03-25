@@ -25,10 +25,12 @@ interface IssueCredentialParams {
   recipientEmail: string;
   recipientName: string;
   issuedOn: Date;
+  expiresAt?: Date;
 }
 
 export async function issueCredential(params: IssueCredentialParams): Promise<object> {
-  const { assertionId, tenant, badgeClass, recipientEmail, recipientName, issuedOn } = params;
+  const { assertionId, tenant, badgeClass, recipientEmail, recipientName, issuedOn, expiresAt } =
+    params;
 
   const verificationUrl = `https://${APP_DOMAIN}/verify/${assertionId}`;
   const keyUrl = `https://${APP_DOMAIN}/keys/${tenant.id}#key-0`;
@@ -47,6 +49,7 @@ export async function issueCredential(params: IssueCredentialParams): Promise<ob
       name: tenant.name,
     },
     issuanceDate: issuedOn.toISOString(),
+    ...(expiresAt ? { expirationDate: expiresAt.toISOString() } : {}),
     credentialSubject: {
       type: 'AchievementSubject',
       identifier: {

@@ -38,13 +38,16 @@ model BadgeClass {
 }
 
 model Assertion {
-  id             String     @id @default(uuid()) @db.Uuid
-  badgeClassId   String     @db.Uuid
-  recipientEmail String
-  recipientName  String
-  issuedOn       DateTime   @default(now())
-  payloadJson    Json
-  badgeClass     BadgeClass @relation(fields: [badgeClassId], references: [id])
+  id               String     @id @default(uuid()) @db.Uuid
+  badgeClassId     String     @db.Uuid
+  recipientEmail   String
+  recipientName    String
+  issuedOn         DateTime   @default(now())
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  revocationReason String?
+  payloadJson      Json
+  badgeClass       BadgeClass @relation(fields: [badgeClassId], references: [id])
 
   @@unique([badgeClassId, recipientEmail])
   @@index([recipientEmail])
