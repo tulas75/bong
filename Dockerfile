@@ -20,7 +20,7 @@ FROM node:24-alpine
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm pkg delete scripts.prepare && npm ci --omit=dev --legacy-peer-deps
 
 COPY prisma ./prisma
 COPY prisma.config.ts ./
