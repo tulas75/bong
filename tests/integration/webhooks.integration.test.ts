@@ -8,6 +8,7 @@ import { encryptField } from '../../src/lib/crypto';
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: mockPrisma,
+  prismaUnfiltered: mockPrisma,
 }));
 
 vi.mock('../../src/services/credential', () => ({

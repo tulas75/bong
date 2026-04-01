@@ -49,7 +49,7 @@ bong tenant list
 # Rotate API key (generates new Argon2id-hashed key)
 bong tenant rotate-key <tenant-id>
 
-# Delete a tenant (cascades to its badges and assertions)
+# Soft-delete a tenant (cascades to badge classes, preserves assertions)
 bong tenant delete <tenant-id>
 ```
 
@@ -84,11 +84,11 @@ bong badge issue <badge-id> --email "user@example.com" --name "Full Name" --expi
 bong badge list
 bong badge list --tenant <tenant-id>
 
-# Delete a badge class (cascades to its assertions)
+# Soft-delete a badge class (assertions remain accessible)
 bong badge delete <badge-id>
 ```
 
-Custom templates use `{{variable}}` placeholders: `{{badgeName}}`, `{{badgeDescription}}`, `{{badgeImageUrl}}`, `{{badgeCriteria}}`, `{{recipientName}}`, `{{recipientEmail}}`, `{{issuerName}}`, `{{issuerUrl}}`, `{{issuedDate}}`, `{{verifyUrl}}`, `{{jsonUrl}}`, `{{statusHtml}}`, `{{expirationHtml}}`.
+Custom templates use `{{variable}}` placeholders: `{{badgeName}}`, `{{badgeDescription}}`, `{{badgeImageUrl}}`, `{{badgeCriteria}}`, `{{recipientName}}`, `{{recipientEmail}}`, `{{issuerName}}`, `{{issuerUrl}}`, `{{issuedDate}}`, `{{verifyUrl}}`, `{{jsonUrl}}`, `{{statusHtml}}`, `{{legacyHtml}}`, `{{expirationHtml}}`.
 
 ### Assertions
 
@@ -98,8 +98,14 @@ bong assertion list
 bong assertion list --badge <badge-id>
 bong assertion list --tenant <tenant-id>
 
-# Revoke an assertion
+# Revoke an assertion (officially invalidates the credential)
 bong assertion revoke <assertion-id> --reason "Issued by mistake"
+
+# Soft-delete an assertion (hides from listings, still verifiable)
+bong assertion delete <assertion-id>
+
+# GDPR anonymize (irreversibly scramble all PII)
+bong assertion anonymize <assertion-id>
 ```
 
 ### Stats
@@ -226,8 +232,20 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 - **XSS prevention** — all template variables HTML-escaped
 - **CSP headers** — Content Security Policy on verification pages
 - **CORS** — configurable via `CORS_ORIGINS`
-- **Duplicate prevention** — unique constraint on `(badgeClassId, recipientEmail)`, returns `409`
+- **Duplicate prevention** — partial unique index on `(badgeClassId, recipientEmail)` for active records, returns `409`
 - **Audit logging** — structured pino logs for auth, issuance, revocation, and webhooks
+
+## Data Integrity (No-Delete Policy)
+
+Records are **never physically deleted**. All delete operations are soft deletes (`deletedAt` timestamp):
+
+- **Tenant delete** → soft-deletes the tenant and cascades to its badge classes. Assertions are preserved so historical credentials remain verifiable.
+- **BadgeClass delete** → soft-deletes the badge class only. Assertions are not affected.
+- **Assertion delete** → soft-deletes the assertion (hides from listings). Use `revoke` to officially invalidate a credential.
+- **Verification page** → if an assertion's issuer (tenant or badge class) has been soft-deleted, a "Legacy Credential — Issuer Retired" banner is shown. The credential's cryptographic signature remains valid.
+- **Auth blocking** → soft-deleted tenants cannot authenticate (API key lookups automatically exclude deleted records).
+- **GDPR anonymization** → `bong assertion anonymize <id>` irreversibly overwrites PII fields (email, name, payload) with placeholders and sets `deletedAt`.
+- **Database-level protection** → PostgreSQL triggers block any physical `DELETE` statement, ensuring the no-delete policy cannot be bypassed at the SQL level.
 
 ## Testing
 
@@ -239,7 +257,7 @@ npm test
 npm run test:watch
 ```
 
-102 tests covering crypto, schemas, credential signing, auth, all API routes, and revocation/expiration flows. Tests use mocked Prisma (no database required).
+108 tests covering crypto, schemas, credential signing, auth, all API routes, and revocation/expiration flows. Tests use mocked Prisma (no database required).
 
 ## Project Structure
 
@@ -254,7 +272,8 @@ npm run test:watch
 │   ├── app.ts               # Express app + route wiring
 │   ├── contexts/            # Cached JSON-LD contexts
 │   ├── lib/
-│   │   ├── prisma.ts        # Prisma client singleton
+│   │   ├── prisma.ts        # Prisma client (filtered + unfiltered)
+│   │   ├── softDelete.ts    # Prisma extension for soft delete policy
 │   │   ├── crypto.ts        # Encryption, Argon2id, hashing
 │   │   ├── logger.ts        # Pino structured logger + audit
 │   │   ├── schemas.ts       # Zod validation schemas
@@ -267,7 +286,9 @@ npm run test:watch
 │   │   ├── webhooks.ts      # Course-completion webhook
 │   │   └── public.ts        # Verification page, raw credential, public keys
 │   └── services/
-│       └── credential.ts    # W3C VC issuance with Ed25519Signature2020
+│       ├── credential.ts    # W3C VC issuance with Ed25519Signature2020
+│       ├── email.ts         # Badge notification emails via SMTP
+│       └── softDelete.ts    # Cascading soft-delete logic
 ├── tests/
 │   ├── setup.ts
 │   ├── helpers/

@@ -1,24 +1,57 @@
 # TODO
 
-## Investigate salted email hashing for identityHash
 
-**Priority:** Low
+
+## Politica "No-Delete" (Integrità Relazionale e Database)
+
+**Priority:** High
+**Related:** `prisma/schema.prisma`, `src/cli.ts`
+
+È vitale attuare una rigorosa politica di conservazione dati. I record rilasciati (Assertion) nel mondo delle Verifiable Credentials vanno strettamente *Revocati* e mai distrutti. L'eliminazione infrastrutturale di Tenant e BadgeClass avverrà unicamente tramite *Soft Delete*.
+
+- [x] Aggiungere il campo `deletedAt` (`DateTime?`) in tutte le tabelle Prisma principali (`Tenant`, `BadgeClass`, `Assertion`).
+- [x] Aggiungere un indice sul campo `deletedAt` (`@@index([deletedAt])`) in Prisma per ottimizzare le future iterazioni di ricerca.
+- [x] Rimuovere il vincolo `@@unique([badgeClassId, recipientEmail])` nativo di Prisma e sostituirlo con una Migrazione raw SQL contenente un **Partial Unique Index** (`WHERE "deletedAt" IS NULL`).
+- [x] **Logica "Cascading Soft Delete"**: la cancellazione logica (soft) di un Tenant propaga il soft delete a tutte le sue `BadgeClass`, **MA** lascia espressamente inalterate le `Assertion` già emesse, così i vecchi utenti manterranno certificati accessibili e validabili (le referenze relazionali nel DB rimarranno intatte).
+- [x] Implementare un Prisma Client Extension/Middleware che converta in background le chiamate di `DELETE` in `UPDATE` (`deletedAt`) ed escluda selettivamente i record eliminati dalle normali query di lettura. **Nota Tecnica**: l'estensione dovrà fornire una configurazione di bypass o metodo raw, poiché la rotta pubblica `/verify/:id` dovrà continuare a completare le interrogazioni (FIND) estraendo le Assertion collegate a Tenant e BadgeClass soft-deleteati, prevenendo errori NotFound (404).
+- [x] Aggiornare la UI della pagina di verifica (`src/routes/public.ts`): se un'Assertion valida viaggia su un Tenant o BadgeClass cancellati (`deletedAt !== null`), il template esporrà logicamente un banner "Legacy Credential / Issuer Retired" (Avviso: L'emittente originale non è più attivo, ma la validità e la firma crittografica della credenziale storica restano pienamente confermate). OpenBadges v3 sostiene by-design le credenziali decentralizzate e orfane.
+- [x] Adeguare preventivamente la CLI: per Tenant e BadgeClass il comando `delete` stamperà "Record marked as deleted (Soft)". Anche per le `Assertion` il comando `delete` applicherà il Soft Delete (per nasconderle dall'Admin UI/API), specificando però che per la svalutazione ufficiale del certificato si deve usare "revoke".
+- [x] **Compliance GDPR (Scrambling & Anonymization)**: Il comando (es. `bong assertion anonymize <id>`) effettuerà un obscuring irreparabile del record al posto del DBMS DELETE:
+  - Campi anagrafici (`recipientEmail`, `recipientName`) sovrascritti con valori placeholder (es. `deleted@oblivion.local`).
+  - `payloadJson` sovrascritto/azzerato per epurare tracce PII (es. `{"status": "anonymized"}`).
+  - Hashing string: poichè `sha256$` della mail può essere craccato a dizionario, anche i campi hash vanno triturati con sequenze fittizie.
+  - Questa operazione di *Scrambling* implicherà di default lo scatter del flag `deletedAt = now()`: l'Assertion diventa un record orfano occupando spazio solo a fini statistici ed impedendo conflitti infrastrutturali.
+- [x] Creare un Trigger PostgreSQL con migrazione raw per bloccare fisicamente le istruzioni SQL standard di `DELETE` a livello di driver/database lanciando un EXCEPTION, ottenendo una blindatura completa.
+
+## Open Badge v3 Compliance (StatusList2021 & Public Key)
+
+**Priority:** High
+**Related:** `src/routes/public.ts`, `prisma/schema.prisma`
+
+- [ ] Implement a public endpoint `/status/list` following the 'W3C StatusList2021' standard. This must allow external validators to verify if a badge has been revoked by reading the `revokedAt` field in the database.
+- [ ] Update the `/keys/:tenantId` route (defined in the `verificationMethod` of the JSON) to explicitly return the Public Key with the `application/ld+json` content type format, otherwise external systems cannot validate the signature.
+
+## Implementare il Salt per l'hashing di `identityHash`
+
+**Priority:** High
 **Related:** OpenBadges v3 spec, `src/lib/crypto.ts` (`hashEmail`), `src/services/credential.ts`
 
-The `identityHash` in issued credentials uses unsalted SHA-256 (`sha256$<hash>`). Since email addresses have low entropy, this can be reversed via rainbow tables by anyone with access to the credential JSON.
+L'attuale `identityHash` nei badge usa un SHA-256 non salato (`sha256$<hash>`). Dato che le email hanno bassa entropia, è necessario implementare un "Salt" univoco aggiunto all'email prima dell'hashing, per impedire che qualcuno possa risalire all'indirizzo email dell'utente tramite attacchi a dizionario (rainbow tables).
 
 **Current behavior:**
+
 ```
 sha256$63c663e3980e655afefd216a41332c4c01c5a0f8571cb6d0ce4b215f40c2755c
 ```
 
 **Action items:**
+
 - [ ] Check if OpenBadges v3 spec supports a salted identity hash format
 - [ ] If salting is supported, add a per-credential random salt and include it in the `IdentityObject` (the spec has a `salt` field)
 - [ ] Update `hashEmail` in `src/lib/crypto.ts` to accept an optional salt
 - [ ] Update `src/services/credential.ts` to generate and pass the salt
 
-## JSON-LD viewer modal for "View raw Verifiable Credential"
+# JSON-LD viewer modal for "View raw Verifiable Credential"#
 
 **Priority:** Medium
 **Related:** `src/routes/public.ts` (verification page template)
@@ -26,10 +59,10 @@ sha256$63c663e3980e655afefd216a41332c4c01c5a0f8571cb6d0ce4b215f40c2755c
 Currently the "View raw Verifiable Credential (JSON-LD)" link navigates to a raw JSON endpoint. Instead, display the JSON in a styled modal overlay on the verification page — similar to Badgr's "Badge Award JSON" dialog:
 
 - [x] Add a modal/overlay triggered by the "View raw" link (no page navigation)
-- [x] Show the JSON pretty-printed in a dark code block
+- [x] Show the JSON pretty-printed with syntax highlighting in a dark code block
 - [x] Add a "Copy to Clipboard" button
-- [x] Add a close (X) button + overlay click + Escape key
-- [x] Keep the modal CSP-compliant (inline scripts/styles, no external resources)
+- [x] Add a close (X) button
+- [x] Keep the modal CSP-compliant (inline styles only, no external JS)
 
 ## Send email notification when a badge is issued
 
@@ -124,15 +157,26 @@ Issue badges to multiple recipients at once from a CSV file.
 - [ ] Report success/failure per row
 - [ ] Skip duplicates gracefully
 
-## Rate limiting
+## Rate limiting e Protezione Brute-Force
 
-**Priority:** Medium
-**Related:** `src/app.ts` (already flagged in security review as LOW)
+**Priority:** High
+**Related:** `src/app.ts`, `src/routes/public.ts`
 
-- [ ] Add `express-rate-limit` middleware
-- [ ] Apply stricter limits to public/unauthenticated routes
-- [ ] Apply per-tenant limits to authenticated routes
-- [ ] Add rate limit config to `.env`
+La protezione Nginx filtra i DDoS, ma l'app deve difendersi in autonomia dai tentativi di brute-force enumerativi sugli UUID dei badge.
+
+- [ ] Aggiungere il middleware `express-rate-limit`.
+- [ ] Configurare un rate limit specifico e stringente sulla rotta pubblica `GET /verify/:assertionId`.
+- [ ] Mantenere rate limiting anche per le rotte autenticate e generali.
+
+## Log Rotation (Es. Winston)
+
+**Priority:** High
+**Related:** `package.json`, `src/utils/logger.ts`
+
+L'app necessita di un sistema per non saturare lo spazio disco della VM (Elestio) coi log testuali dei servizi in esecuzione nel tempo.
+
+- [ ] Configurare una libreria di logging avanzata (es. `winston` + `winston-daily-rotate-file`).
+- [ ] Prevedere rotazione dei file di log per data/dimensioni con eventuale auto-cancellazione o storage archiviato dei log troppo vecchi.
 
 ## QR code on verification page
 

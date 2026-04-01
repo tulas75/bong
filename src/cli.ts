@@ -15,11 +15,18 @@ import {
   hashApiKey,
   extractApiKeyPrefix,
 } from './lib/crypto.js';
+import { withSoftDelete } from './lib/softDelete.js';
+import {
+  softDeleteTenant,
+  softDeleteBadgeClass,
+  softDeleteAssertion,
+} from './services/softDelete.js';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
 });
-const prisma = new PrismaClient({ adapter } as any);
+const basePrisma = new PrismaClient({ adapter } as any);
+const prisma = withSoftDelete(basePrisma);
 
 const program = new Command();
 
@@ -90,7 +97,7 @@ tenant
 
 tenant
   .command('delete <id>')
-  .description('Delete a tenant and all its badge classes and assertions')
+  .description('Soft-delete a tenant and cascade to its badge classes')
   .action(async (id) => {
     const t = await prisma.tenant.findUnique({ where: { id } });
     if (!t) {
@@ -98,24 +105,11 @@ tenant
       process.exit(1);
     }
 
-    // Delete in order: assertions → badge classes → tenant
-    const badgeClasses = await prisma.badgeClass.findMany({
-      where: { tenantId: id },
-      select: { id: true },
-    });
-    const badgeClassIds = badgeClasses.map((b) => b.id);
+    await softDeleteTenant(basePrisma, id);
 
-    const deletedAssertions = await prisma.assertion.deleteMany({
-      where: { badgeClassId: { in: badgeClassIds } },
-    });
-    const deletedBadges = await prisma.badgeClass.deleteMany({
-      where: { tenantId: id },
-    });
-    await prisma.tenant.delete({ where: { id } });
-
-    console.log(`\nDeleted tenant "${t.name}":`);
-    console.log(`  Badge classes removed: ${deletedBadges.count}`);
-    console.log(`  Assertions removed:    ${deletedAssertions.count}`);
+    console.log(`\nTenant "${t.name}" marked as deleted (Soft).`);
+    console.log(`  Associated badge classes have been soft-deleted.`);
+    console.log(`  Existing assertions remain accessible for verification.`);
   });
 
 tenant
@@ -221,7 +215,7 @@ badge
 
 badge
   .command('delete <id>')
-  .description('Delete a badge class and all its assertions')
+  .description('Soft-delete a badge class')
   .action(async (id) => {
     const b = await prisma.badgeClass.findUnique({ where: { id } });
     if (!b) {
@@ -229,13 +223,10 @@ badge
       process.exit(1);
     }
 
-    const deletedAssertions = await prisma.assertion.deleteMany({
-      where: { badgeClassId: id },
-    });
-    await prisma.badgeClass.delete({ where: { id } });
+    await softDeleteBadgeClass(basePrisma, id);
 
-    console.log(`\nDeleted badge class "${b.name}":`);
-    console.log(`  Assertions removed: ${deletedAssertions.count}`);
+    console.log(`\nBadge class "${b.name}" marked as deleted (Soft).`);
+    console.log(`  Existing assertions remain accessible for verification.`);
   });
 
 badge
@@ -350,6 +341,46 @@ assertion
 
     console.log(`\nAssertion "${assertionId}" revoked.`);
     console.log(`  Reason: ${opts.reason}`);
+  });
+
+assertion
+  .command('delete <assertionId>')
+  .description('Soft-delete an assertion (hides from listings)')
+  .action(async (assertionId) => {
+    const a = await prisma.assertion.findUnique({ where: { id: assertionId } });
+    if (!a) {
+      console.error(`Assertion "${assertionId}" not found.`);
+      process.exit(1);
+    }
+
+    await softDeleteAssertion(basePrisma, assertionId);
+
+    console.log(`\nAssertion "${assertionId}" marked as deleted (Soft).`);
+    console.log(`  Note: To officially invalidate the credential, use "bong assertion revoke".`);
+  });
+
+assertion
+  .command('anonymize <assertionId>')
+  .description('GDPR: irreversibly anonymize an assertion (scramble all PII)')
+  .action(async (assertionId) => {
+    const a = await basePrisma.assertion.findUnique({ where: { id: assertionId } });
+    if (!a) {
+      console.error(`Assertion "${assertionId}" not found.`);
+      process.exit(1);
+    }
+
+    await basePrisma.assertion.update({
+      where: { id: assertionId },
+      data: {
+        recipientEmail: 'redacted@anonymized.invalid',
+        recipientName: 'Anonymized User',
+        payloadJson: { status: 'anonymized' },
+        deletedAt: a.deletedAt ?? new Date(),
+      },
+    });
+
+    console.log(`\nAssertion "${assertionId}" has been irreversibly anonymized.`);
+    console.log(`  PII fields overwritten. Credential payload purged.`);
   });
 
 assertion

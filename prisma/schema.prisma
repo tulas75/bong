@@ -17,7 +17,10 @@ model Tenant {
   apiKey              String       // Stored as Argon2id hash
   webhookSecret       String?      // Encrypted with AES-256-GCM, optional HMAC secret
   createdAt           DateTime     @default(now())
+  deletedAt           DateTime?
   badgeClasses       BadgeClass[]
+
+  @@index([deletedAt])
 }
 
 model BadgeClass {
@@ -30,11 +33,13 @@ model BadgeClass {
   criteria         String
   templateHtml     String?
   createdAt        DateTime    @default(now())
+  deletedAt        DateTime?
   tenant           Tenant      @relation(fields: [tenantId], references: [id])
   assertions       Assertion[]
 
   @@index([tenantId])
   @@index([externalCourseId])
+  @@index([deletedAt])
 }
 
 model Assertion {
@@ -47,8 +52,10 @@ model Assertion {
   revokedAt        DateTime?
   revocationReason String?
   payloadJson      Json
+  deletedAt        DateTime?
   badgeClass       BadgeClass @relation(fields: [badgeClassId], references: [id])
 
-  @@unique([badgeClassId, recipientEmail])
+  // Partial unique index managed via raw SQL migration (WHERE "deletedAt" IS NULL)
   @@index([recipientEmail])
+  @@index([deletedAt])
 }

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '../lib/prisma.js';
+import { prismaUnfiltered } from '../lib/prisma.js';
 import { escapeHtml } from '../lib/crypto.js';
 
 const router = Router();
@@ -25,6 +25,7 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
     .status-revoked { color: #ef4444; font-weight: 600; }
     .status-expired { color: #f59e0b; font-weight: 600; }
     .revocation-reason { color: #ef4444; font-size: 0.9em; margin-top: 4px; }
+    .status-legacy { color: #6b7280; font-weight: 600; background: #fef3c7; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9em; line-height: 1.5; }
     .details { text-align: left; margin-top: 24px; }
     .details dt { font-weight: 600; color: #666; margin-top: 12px; }
     .details dd { margin-left: 0; }
@@ -47,6 +48,7 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
   <div class="card">
     <img src="{{badgeImageUrl}}" alt="{{badgeName}}" class="badge-image" />
     <h1>{{badgeName}}</h1>
+    {{legacyHtml}}
     {{statusHtml}}
     <dl class="details">
       <dt>Recipient</dt>
@@ -131,7 +133,7 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
   });
 }
 
-const RAW_HTML_KEYS = new Set(['statusHtml', 'expirationHtml', 'credentialJson']);
+const RAW_HTML_KEYS = new Set(['statusHtml', 'expirationHtml', 'legacyHtml', 'credentialJson']);
 
 function renderRawHtml(template: string, vars: Record<string, string>): string {
   // First pass: render raw HTML/JSON blocks (not escaped)
@@ -151,7 +153,7 @@ function renderRawHtml(template: string, vars: Record<string, string>): string {
 // GET /verify/:assertionId - HTML verification page with OG tags
 router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   const assertionId = req.params.assertionId as string;
-  const assertion = await prisma.assertion.findUnique({
+  const assertion = await prismaUnfiltered.assertion.findUnique({
     where: { id: assertionId },
     include: { badgeClass: { include: { tenant: true } } },
   });
@@ -168,6 +170,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   // Determine status
   const isRevoked = !!assertion.revokedAt;
   const isExpired = !!assertion.expiresAt && assertion.expiresAt < new Date();
+  const isLegacy = !!(badgeClass.tenant as any).deletedAt || !!(badgeClass as any).deletedAt;
 
   let statusHtml: string;
   if (isRevoked) {
@@ -178,6 +181,11 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     statusHtml = `<p class="status-expired">Expired</p>`;
   } else {
     statusHtml = `<p class="status-verified">Verified Credential</p>`;
+  }
+
+  let legacyHtml = '';
+  if (isLegacy) {
+    legacyHtml = `<div class="status-legacy"><strong>Legacy Credential &mdash; Issuer Retired</strong><br>The original issuer is no longer active, but the validity and cryptographic signature of this historical credential remain fully confirmed.</div>`;
   }
 
   let expirationHtml = '';
@@ -198,6 +206,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     verifyUrl,
     jsonUrl,
     statusHtml,
+    legacyHtml,
     expirationHtml,
     credentialJson: JSON.stringify(assertion.payloadJson).replace(/</g, '\\u003c'),
   };
@@ -217,7 +226,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
 // GET /api/v1/assertions/:assertionId - Raw JSON-LD credential
 router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response) => {
   const assertionId = req.params.assertionId as string;
-  const assertion = await prisma.assertion.findUnique({
+  const assertion = await prismaUnfiltered.assertion.findUnique({
     where: { id: assertionId },
   });
 
@@ -243,7 +252,7 @@ router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response
 // GET /keys/:tenantId - Public key document
 router.get('/keys/:tenantId', async (req: Request, res: Response) => {
   const tenantId = req.params.tenantId as string;
-  const tenant = await prisma.tenant.findUnique({
+  const tenant = await prismaUnfiltered.tenant.findUnique({
     where: { id: tenantId },
   });
 

@@ -3,6 +3,7 @@ import request from 'supertest';
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: {},
+  prismaUnfiltered: {},
 }));
 
 import app from '../../src/app';

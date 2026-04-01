@@ -5,6 +5,7 @@ import { makeTenant, makeBadgeClass, makeAssertion } from '../helpers/fixtures';
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: mockPrisma,
+  prismaUnfiltered: mockPrisma,
 }));
 
 import app from '../../src/app';
