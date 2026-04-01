@@ -95,7 +95,14 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     res.status(400).json({ error: 'Invalid JSON' });
     return;
   }
-  logger.error({ err }, 'unhandled_error');
+
+  const safeErr = {
+    message: err.message,
+    name: err.name,
+    stack: err.stack,
+  };
+
+  logger.error({ err: safeErr }, 'unhandled_error');
   res.status(500).json({ error: 'Internal server error' });
 });
 

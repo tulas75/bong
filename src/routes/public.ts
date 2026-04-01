@@ -199,7 +199,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     jsonUrl,
     statusHtml,
     expirationHtml,
-    credentialJson: JSON.stringify(assertion.payloadJson),
+    credentialJson: JSON.stringify(assertion.payloadJson).replace(/</g, '\\u003c'),
   };
 
   const template = badgeClass.templateHtml || DEFAULT_TEMPLATE;
