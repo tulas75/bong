@@ -60,6 +60,7 @@ describe('issueCredential', () => {
   it('has issuer matching tenant', async () => {
     const { credential: result } = await issueCredential(makeParams());
     expect((result as any).issuer.name).toBe('Test Academy');
+    expect((result as any).issuer.url).toBe('https://test.example.com');
     expect((result as any).issuer.id).toBe(`did:key:${publicKeyMultibase}`);
   });
 

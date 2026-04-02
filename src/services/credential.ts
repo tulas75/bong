@@ -79,6 +79,7 @@ export async function issueCredential(
       id: didKey,
       type: 'Profile',
       name: tenant.name,
+      url: tenant.url,
     },
     validFrom: issuedOn.toISOString(),
     ...(expiresAt ? { validUntil: expiresAt.toISOString() } : {}),
