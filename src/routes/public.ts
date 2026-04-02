@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { gzipSync } from 'zlib';
 import { prismaUnfiltered } from '../lib/prisma.js';
-import { escapeHtml } from '../lib/crypto.js';
+import { escapeHtml, decryptField, getEncryptionKey } from '../lib/crypto.js';
+import { signStatusListCredential } from '../services/statusList.js';
 
 const router = Router();
 
@@ -274,7 +274,7 @@ router.get('/keys/:tenantId', async (req: Request, res: Response) => {
   res.type('application/ld+json').send(JSON.stringify(keyDocument));
 });
 
-// GET /status/list/:tenantId - W3C Bitstring Status List (revocation)
+// GET /status/list/:tenantId - W3C Bitstring Status List (revocation, signed)
 router.get('/status/list/:tenantId', async (req: Request, res: Response) => {
   const tenantId = req.params.tenantId as string;
   const tenant = await prismaUnfiltered.tenant.findUnique({
@@ -286,47 +286,24 @@ router.get('/status/list/:tenantId', async (req: Request, res: Response) => {
     return;
   }
 
-  // Fetch all revoked assertions with a statusListIndex (including soft-deleted)
   const revoked = await prismaUnfiltered.assertion.findMany({
     where: { tenantId, statusListIndex: { not: null }, revokedAt: { not: null } },
     select: { statusListIndex: true },
   });
 
-  // W3C spec mandates minimum 16KB (131,072 bits) bitstring
-  const MINIMUM_BITSTRING_SIZE = 131072;
-  const bitstringLength = Math.max(MINIMUM_BITSTRING_SIZE, tenant.nextStatusIndex);
+  const encryptionKey = getEncryptionKey();
+  const privateKeyMultibase = decryptField(tenant.privateKeyMultibase, encryptionKey);
 
-  // Build bitstring buffer (MSB-first bit ordering per spec)
-  const byteLength = Math.ceil(bitstringLength / 8);
-  const buffer = Buffer.alloc(byteLength);
-  for (const { statusListIndex } of revoked) {
-    if (statusListIndex !== null) {
-      const byteIndex = Math.floor(statusListIndex / 8);
-      const bitIndex = 7 - (statusListIndex % 8);
-      buffer[byteIndex] |= 1 << bitIndex;
-    }
-  }
-
-  // GZIP compress → Base64URL (no padding)
-  const compressed = gzipSync(buffer);
-  const encodedList = compressed.toString('base64url');
-
-  res.type('application/ld+json').json({
-    '@context': [
-      'https://www.w3.org/ns/credentials/v2',
-      'https://www.w3.org/ns/credentials/status/v1',
-    ],
-    id: `https://${APP_DOMAIN}/status/list/${tenantId}`,
-    type: ['VerifiableCredential', 'BitstringStatusListCredential'],
-    issuer: `did:key:${tenant.publicKeyMultibase}`,
-    validFrom: tenant.createdAt.toISOString(),
-    credentialSubject: {
-      id: `https://${APP_DOMAIN}/status/list/${tenantId}#list`,
-      type: 'BitstringStatusList',
-      statusPurpose: 'revocation',
-      encodedList,
-    },
+  const signedList = await signStatusListCredential({
+    tenantId,
+    publicKeyMultibase: tenant.publicKeyMultibase,
+    privateKeyMultibase,
+    createdAt: tenant.createdAt,
+    nextStatusIndex: tenant.nextStatusIndex,
+    revokedIndices: revoked.map((r) => ({ statusListIndex: r.statusListIndex! })),
   });
+
+  res.type('application/ld+json').json(signedList);
 });
 
 export default router;

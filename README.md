@@ -128,22 +128,22 @@ bong stats
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|---|---|---|
-| `POSTGRES_USER` | PostgreSQL username | `bong` |
-| `POSTGRES_PASSWORD` | PostgreSQL password | `bong` |
-| `POSTGRES_DB` | PostgreSQL database name | `bong` |
-| `APP_DOMAIN` | Domain used in verification URLs | `localhost:3000` |
-| `PORT` | Server port | `3000` |
-| `ENCRYPTION_KEY` | 256-bit hex key for encrypting private keys at rest | **(required)** |
-| `CORS_ORIGINS` | Comma-separated allowed origins (e.g., `https://myapp.com`) | empty (no CORS) |
-| `LOG_LEVEL` | Pino log level (`debug`, `info`, `warn`, `error`) | `info` |
-| `SMTP_HOST` | SMTP server hostname (email disabled if empty) | empty (no email) |
-| `SMTP_PORT` | SMTP server port | `587` |
-| `SMTP_SECURE` | Use TLS (`true`/`false`) | `false` |
-| `SMTP_USER` | SMTP username | empty |
-| `SMTP_PASS` | SMTP password | empty |
-| `SMTP_FROM` | Sender address for badge emails | `"BONG Badges <badges@example.com>"` |
+| Variable            | Description                                                 | Default                              |
+| ------------------- | ----------------------------------------------------------- | ------------------------------------ |
+| `POSTGRES_USER`     | PostgreSQL username                                         | `bong`                               |
+| `POSTGRES_PASSWORD` | PostgreSQL password                                         | `bong`                               |
+| `POSTGRES_DB`       | PostgreSQL database name                                    | `bong`                               |
+| `APP_DOMAIN`        | Domain used in verification URLs                            | `localhost:3000`                     |
+| `PORT`              | Server port                                                 | `3000`                               |
+| `ENCRYPTION_KEY`    | 256-bit hex key for encrypting private keys at rest         | **(required)**                       |
+| `CORS_ORIGINS`      | Comma-separated allowed origins (e.g., `https://myapp.com`) | empty (no CORS)                      |
+| `LOG_LEVEL`         | Pino log level (`debug`, `info`, `warn`, `error`)           | `info`                               |
+| `SMTP_HOST`         | SMTP server hostname (email disabled if empty)              | empty (no email)                     |
+| `SMTP_PORT`         | SMTP server port                                            | `587`                                |
+| `SMTP_SECURE`       | Use TLS (`true`/`false`)                                    | `false`                              |
+| `SMTP_USER`         | SMTP username                                               | empty                                |
+| `SMTP_PASS`         | SMTP password                                               | empty                                |
+| `SMTP_FROM`         | Sender address for badge emails                             | `"BONG Badges <badges@example.com>"` |
 
 ## API Endpoints
 
@@ -219,14 +219,14 @@ If the tenant has a webhook secret, the request must include an `X-Webhook-Signa
 
 ### Public (no auth)
 
-| Endpoint | Description |
-|---|---|
-| `GET /` | Landing page |
-| `GET /verify/:assertionId` | HTML verification page (shows revocation/expiration status) |
-| `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/ld+json`) |
-| `GET /keys/:tenantId` | Tenant's public key document (`application/ld+json`) |
-| `GET /status/list/:tenantId` | W3C Bitstring Status List for revocation checking |
-| `GET /health` | Health check |
+| Endpoint                              | Description                                                 |
+| ------------------------------------- | ----------------------------------------------------------- |
+| `GET /`                               | Landing page                                                |
+| `GET /verify/:assertionId`            | HTML verification page (shows revocation/expiration status) |
+| `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/ld+json`)    |
+| `GET /keys/:tenantId`                 | Tenant's public key document (`application/ld+json`)        |
+| `GET /status/list/:tenantId`          | W3C Bitstring Status List for revocation checking           |
+| `GET /health`                         | Health check                                                |
 
 ## Email Notifications
 
@@ -246,7 +246,7 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 
 ## Open Badges v3 Compliance
 
-- **W3C Bitstring Status List** — Public `/status/list/:tenantId` endpoint for programmatic revocation checking. Bitstring is GZIP-compressed and Base64URL-encoded per spec (16KB minimum).
+- **W3C Bitstring Status List** — Public `/status/list/:tenantId` endpoint for programmatic revocation checking. Bitstring is GZIP-compressed and Base64URL-encoded per spec (16KB minimum). The status list credential is **signed with a Data Integrity Proof** (eddsa-rdfc-2022), enabling verifiers to authenticate its origin and detect tampering.
 - **Atomic status indexing** — Each assertion gets a unique `statusListIndex` assigned via atomic database transaction, preventing race conditions on concurrent issuance.
 - **`credentialStatus`** — Embedded in the signed VC payload as `BitstringStatusListEntry`, pointing to the tenant's status list endpoint.
 - **Achievement types** — Badge classes support OB3 `achievementType` (Badge, Certificate, Course, Diploma, etc.) injected into the signed credential.
