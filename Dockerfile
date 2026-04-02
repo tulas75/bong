@@ -6,12 +6,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
 
+COPY tsconfig.json ./
+COPY src ./src
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 RUN npx prisma generate
-
-COPY tsconfig.json ./
-COPY src ./src
 RUN npm run build
 
 # Stage 2: Production
