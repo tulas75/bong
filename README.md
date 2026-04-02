@@ -236,7 +236,7 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 
 - **Private keys encrypted at rest** — AES-256-GCM with `ENCRYPTION_KEY`
 - **API keys hashed with Argon2id** — memory-hard, salted; lookup via stored prefix
-- **Recipient email hashed in credentials** — `sha256$<hex>` per OB3 spec
+- **Recipient email hashed in credentials** — salted `sha256$<hex>` per OB3 spec (random salt generated per recipient, persisted alongside the assertion)
 - **Webhook signature verification** — optional HMAC-SHA256 via `X-Webhook-Signature`
 - **XSS prevention** — all template variables HTML-escaped
 - **CSP headers** — Content Security Policy on verification pages

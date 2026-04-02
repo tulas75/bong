@@ -34,6 +34,7 @@ export function makeAssertion(overrides: Record<string, any> = {}) {
     badgeClassId: '622cf501-bf52-47f5-a5a0-c7f168f3d6bc',
     recipientEmail: 'user@example.com',
     recipientName: 'Test User',
+    recipientSalt: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
     issuedOn: new Date('2026-01-15'),
     expiresAt: null,
     revokedAt: null,

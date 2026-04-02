@@ -83,10 +83,16 @@ export function hashApiKeySha256(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
 }
 
-export function hashEmail(email: string): string {
+export function hashEmail(
+  email: string,
+  explicitSalt?: string,
+): { identityHash: string; salt: string } {
   const normalized = email.toLowerCase().trim();
-  const hash = createHash('sha256').update(normalized).digest('hex');
-  return `sha256$${hash}`;
+  const salt = explicitSalt || randomBytes(16).toString('hex');
+  const hash = createHash('sha256')
+    .update(salt + normalized)
+    .digest('hex');
+  return { identityHash: `sha256$${hash}`, salt };
 }
 
 export function escapeHtml(str: string): string {

@@ -14,7 +14,7 @@ interface IssueCredentialParams {
     name: string;
     url: string;
     publicKeyMultibase: string;
-    privateKeyMultibase: string; // Stores secretKeyMultibase (Multikey format)
+    privateKeyMultibase: string;
   };
   badgeClass: {
     id: string;
@@ -29,9 +29,17 @@ interface IssueCredentialParams {
   issuedOn: Date;
   expiresAt?: Date;
   statusListIndex?: number;
+  recipientSalt?: string;
 }
 
-export async function issueCredential(params: IssueCredentialParams): Promise<object> {
+export interface IssueCredentialResult {
+  credential: object;
+  salt: string;
+}
+
+export async function issueCredential(
+  params: IssueCredentialParams,
+): Promise<IssueCredentialResult> {
   const {
     assertionId,
     tenant,
@@ -41,22 +49,20 @@ export async function issueCredential(params: IssueCredentialParams): Promise<ob
     issuedOn,
     expiresAt,
     statusListIndex,
+    recipientSalt,
   } = params;
 
   const verificationUrl = `https://${APP_DOMAIN}/verify/${assertionId}`;
   const didKey = `did:key:${tenant.publicKeyMultibase}`;
   const keyId = `${didKey}#${tenant.publicKeyMultibase}`;
 
-  // Build the unsigned credential (VC v2 + OB3 3.0.3)
+  const { identityHash, salt } = hashEmail(recipientEmail, recipientSalt);
+
   const credential = {
     '@context': [
       'https://www.w3.org/ns/credentials/v2',
       'https://purl.imsglobal.org/spec/ob/v3p0/context-3.0.3.json',
       {
-        // 1EdTechJsonSchemaValidator2019 is not defined in the VC v2 or OB3 JSON-LD
-        // contexts, but is required by the OB3 spec for credentialSchema validation.
-        // This inline mapping prevents safe mode validation errors from the
-        // @protected VC v2 context.
         '1EdTechJsonSchemaValidator2019':
           'https://purl.imsglobal.org/spec/vc/ob/vocab.html#1EdTechJsonSchemaValidator2019',
       },
@@ -92,9 +98,10 @@ export async function issueCredential(params: IssueCredentialParams): Promise<ob
       identifier: [
         {
           type: 'IdentityObject',
-          identityHash: hashEmail(recipientEmail),
+          identityHash,
           identityType: 'emailAddress',
           hashed: true,
+          salt,
         },
       ],
       achievement: {
@@ -115,7 +122,6 @@ export async function issueCredential(params: IssueCredentialParams): Promise<ob
     name: badgeClass.name,
   };
 
-  // Load the Multikey key pair
   const keyPair = await Ed25519Multikey.from({
     id: keyId,
     type: 'Multikey',
@@ -124,18 +130,16 @@ export async function issueCredential(params: IssueCredentialParams): Promise<ob
     secretKeyMultibase: tenant.privateKeyMultibase,
   });
 
-  // Create the Data Integrity signing suite (eddsa-rdfc-2022)
   const suite = new DataIntegrityProof({
     cryptosuite: eddsaRdfc2022CryptoSuite,
     signer: keyPair.signer(),
   });
 
-  // Issue (sign) the credential
   const signedCredential = await vc.issue({
     credential,
     suite,
     documentLoader,
   });
 
-  return signedCredential;
+  return { credential: signedCredential, salt };
 }

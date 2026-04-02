@@ -134,21 +134,52 @@ describe('hashApiKey / verifyApiKey', () => {
 });
 
 describe('hashEmail', () => {
-  it('returns sha256$ prefixed hash', () => {
+  it('returns sha256$ prefixed hash and salt', () => {
     const result = hashEmail('test@example.com');
-    expect(result).toMatch(/^sha256\$[0-9a-f]{64}$/);
+    expect(result.identityHash).toMatch(/^sha256\$[0-9a-f]{64}$/);
+    expect(result.salt).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it('normalizes to lowercase', () => {
-    expect(hashEmail('Test@Example.COM')).toBe(hashEmail('test@example.com'));
+    const salt = 'fixedsalt123';
+    expect(hashEmail('Test@Example.COM', salt).identityHash).toBe(
+      hashEmail('test@example.com', salt).identityHash,
+    );
   });
 
   it('trims whitespace', () => {
-    expect(hashEmail('  test@example.com  ')).toBe(hashEmail('test@example.com'));
+    const salt = hashEmail('test@example.com').salt;
+    expect(hashEmail('  test@example.com  ', salt).identityHash).toBe(
+      hashEmail('test@example.com', salt).identityHash,
+    );
   });
 
-  it('produces different hashes for different emails', () => {
-    expect(hashEmail('a@b.com')).not.toBe(hashEmail('c@d.com'));
+  it('produces different hashes for different emails with same salt', () => {
+    const { salt } = hashEmail('a@b.com');
+    expect(hashEmail('a@b.com', salt).identityHash).not.toBe(
+      hashEmail('c@d.com', salt).identityHash,
+    );
+  });
+
+  it('produces different hashes for same email with different salts', () => {
+    expect(hashEmail('same@email.com', 'salt1').identityHash).not.toBe(
+      hashEmail('same@email.com', 'salt2').identityHash,
+    );
+  });
+
+  it('produces same hash when given explicit salt', () => {
+    const explicitSalt = 'abc123';
+    const a = hashEmail('test@example.com', explicitSalt);
+    const b = hashEmail('test@example.com', explicitSalt);
+    expect(a.identityHash).toBe(b.identityHash);
+    expect(a.salt).toBe(explicitSalt);
+  });
+
+  it('generates random salt when not provided', () => {
+    const a = hashEmail('test@example.com');
+    const b = hashEmail('test@example.com');
+    expect(a.salt).not.toBe(b.salt);
+    expect(a.identityHash).not.toBe(b.identityHash);
   });
 });
 

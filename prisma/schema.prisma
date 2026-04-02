@@ -51,6 +51,7 @@ model Assertion {
   tenantId         String     @db.Uuid
   recipientEmail   String
   recipientName    String
+  recipientSalt    String?
   issuedOn         DateTime   @default(now())
   expiresAt        DateTime?
   revokedAt        DateTime?

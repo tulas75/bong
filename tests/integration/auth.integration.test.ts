@@ -11,9 +11,12 @@ vi.mock('../../src/lib/prisma', () => ({
 
 vi.mock('../../src/services/credential', () => ({
   issueCredential: vi.fn().mockResolvedValue({
-    '@context': ['https://www.w3.org/ns/credentials/v2'],
-    type: ['VerifiableCredential'],
-    proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-rdfc-2022', proofValue: 'mock' },
+    credential: {
+      '@context': ['https://www.w3.org/ns/credentials/v2'],
+      type: ['VerifiableCredential'],
+      proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-rdfc-2022', proofValue: 'mock' },
+    },
+    salt: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
   }),
 }));
 

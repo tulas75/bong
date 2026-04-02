@@ -44,7 +44,7 @@ export async function issueBadge(params: IssueBadgeParams) {
     const statusListIndex = updated.nextStatusIndex - 1;
 
     // 2. Sign the credential (includes credentialStatus with the index)
-    const signedCredential = await issueCredential({
+    const { credential: signedCredential, salt } = await issueCredential({
       assertionId,
       tenant,
       badgeClass,
@@ -66,6 +66,7 @@ export async function issueBadge(params: IssueBadgeParams) {
         issuedOn,
         expiresAt: expiresAt || null,
         statusListIndex,
+        recipientSalt: salt,
         payloadJson: signedCredential as any,
       },
     });
