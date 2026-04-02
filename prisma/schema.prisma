@@ -11,6 +11,7 @@ model Tenant {
   id                 String       @id @default(uuid()) @db.Uuid
   name               String
   url                String
+  imageUrl           String?
   publicKeyMultibase  String
   privateKeyMultibase String       // Encrypted with AES-256-GCM (ENCRYPTION_KEY)
   apiKeyPrefix        String       @unique @db.VarChar(16) // First 8 chars of raw key, used for lookup

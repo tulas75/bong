@@ -39,6 +39,7 @@ tenant
   .description('Create a new tenant with auto-generated keys')
   .requiredOption('--name <name>', 'Organization name')
   .requiredOption('--url <url>', 'Organization URL')
+  .option('--image <imageUrl>', 'Organization logo/image URL')
   .option('--webhook-secret <secret>', 'HMAC secret for webhook signature verification')
   .action(async (opts) => {
     const encryptionKey = getEncryptionKey();
@@ -53,6 +54,7 @@ tenant
       data: {
         name: opts.name,
         url: opts.url,
+        imageUrl: opts.image || null,
         publicKeyMultibase: exported.publicKeyMultibase!,
         // DB column is "privateKeyMultibase" but stores Multikey secretKeyMultibase
         privateKeyMultibase: encryptField(exported.secretKeyMultibase!, encryptionKey),
@@ -66,6 +68,7 @@ tenant
     console.log(`  ID:             ${t.id}`);
     console.log(`  Name:           ${t.name}`);
     console.log(`  URL:            ${t.url}`);
+    console.log(`  Image:          ${t.imageUrl || '(none)'}`);
     console.log(`  API Key:        ${rawApiKey}  (save this — it cannot be retrieved)`);
     console.log(`  Public Key:     ${t.publicKeyMultibase}`);
     console.log(`  Webhook secret: ${opts.webhookSecret ? 'set' : '(none)'}`);

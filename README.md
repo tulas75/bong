@@ -40,6 +40,9 @@ The `bong` CLI manages tenants, badges, assertions, and provides stats. Availabl
 # Create a tenant (auto-generates Ed25519 key pair and API key)
 bong tenant create --name "Acme Academy" --url "https://acme.edu"
 
+# Create with organization logo
+bong tenant create --name "Acme Academy" --url "https://acme.edu" --image "https://acme.edu/logo.png"
+
 # Create with webhook signature verification
 bong tenant create --name "Acme Academy" --url "https://acme.edu" --webhook-secret "mysecret"
 

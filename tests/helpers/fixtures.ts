@@ -3,6 +3,7 @@ export function makeTenant(overrides: Record<string, any> = {}) {
     id: '58fcdb5a-b604-44bf-8c46-3bd89bc940b0',
     name: 'Test Academy',
     url: 'https://test.example.com',
+    imageUrl: null,
     publicKeyMultibase: 'z6MkfakePublicKey',
     privateKeyMultibase: 'encrypted-private-key',
     apiKeyPrefix: 'aabbccdd',

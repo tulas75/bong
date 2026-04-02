@@ -64,6 +64,29 @@ describe('issueCredential', () => {
     expect((result as any).issuer.id).toBe(`did:key:${publicKeyMultibase}`);
   });
 
+  it('includes issuer image when tenant has imageUrl', async () => {
+    const { credential: result } = await issueCredential(
+      makeParams({
+        tenant: {
+          id: '58fcdb5a-b604-44bf-8c46-3bd89bc940b0',
+          name: 'Test Academy',
+          url: 'https://test.example.com',
+          imageUrl: 'https://example.com/logo.png',
+          publicKeyMultibase,
+          privateKeyMultibase,
+        },
+      }),
+    );
+    expect((result as any).issuer.image).toBeDefined();
+    expect((result as any).issuer.image.id).toBe('https://example.com/logo.png');
+    expect((result as any).issuer.image.type).toBe('Image');
+  });
+
+  it('omits issuer image when tenant has no imageUrl', async () => {
+    const { credential: result } = await issueCredential(makeParams());
+    expect((result as any).issuer.image).toBeUndefined();
+  });
+
   it('has hashed email with salt in credentialSubject', async () => {
     const { credential: result, salt } = await issueCredential(makeParams());
     const identifier = (result as any).credentialSubject.identifier[0];

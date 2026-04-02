@@ -13,6 +13,7 @@ interface IssueCredentialParams {
     id: string;
     name: string;
     url: string;
+    imageUrl?: string | null;
     publicKeyMultibase: string;
     privateKeyMultibase: string;
   };
@@ -80,6 +81,7 @@ export async function issueCredential(
       type: 'Profile',
       name: tenant.name,
       url: tenant.url,
+      ...(tenant.imageUrl ? { image: { id: tenant.imageUrl, type: 'Image' } } : {}),
     },
     validFrom: issuedOn.toISOString(),
     ...(expiresAt ? { validUntil: expiresAt.toISOString() } : {}),
