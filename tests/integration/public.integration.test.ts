@@ -166,19 +166,29 @@ describe('GET /api/v1/assertions/:assertionId (public)', () => {
     expect(res.body.error).toBe('Assertion not found');
   });
 
-  it('includes credentialStatus when revoked', async () => {
+  it('returns original credential without mutation when revoked', async () => {
     const revoked = makeAssertion({
       revokedAt: new Date('2026-03-01T00:00:00Z'),
       revocationReason: 'Fraudulent',
+      payloadJson: {
+        '@context': ['https://www.w3.org/ns/credentials/v2'],
+        type: ['VerifiableCredential', 'OpenBadgeCredential'],
+        credentialStatus: {
+          type: 'BitstringStatusListEntry',
+          statusListIndex: '3',
+          statusPurpose: 'revocation',
+        },
+        proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-rdfc-2022', proofValue: 'mock' },
+      },
     });
     mockPrisma.assertion.findUnique.mockResolvedValue(revoked);
 
     const res = await request(app).get('/api/v1/assertions/72910be6-cbde-441c-b602-484884dbc28e');
 
     expect(res.status).toBe(200);
-    expect(res.body.credentialStatus).toBeDefined();
-    expect(res.body.credentialStatus.revoked).toBe(true);
-    expect(res.body.credentialStatus.reason).toBe('Fraudulent');
+    expect(res.body.credentialStatus.type).toBe('BitstringStatusListEntry');
+    expect(res.body.credentialStatus.type).not.toBe('RevocationStatus');
+    expect(res.body.credentialStatus.revoked).toBeUndefined();
   });
 });
 

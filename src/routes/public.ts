@@ -224,7 +224,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     .send(html);
 });
 
-// GET /api/v1/assertions/:assertionId - Raw JSON-LD credential
+// GET /api/v1/assertions/:assertionId - Raw JSON-LD credential (immutable)
 router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response) => {
   const assertionId = req.params.assertionId as string;
   const assertion = await prismaUnfiltered.assertion.findUnique({
@@ -236,18 +236,7 @@ router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response
     return;
   }
 
-  const payload = assertion.payloadJson as Record<string, any>;
-
-  if (assertion.revokedAt) {
-    payload.credentialStatus = {
-      type: 'RevocationStatus',
-      revoked: true,
-      revokedAt: assertion.revokedAt.toISOString(),
-      ...(assertion.revocationReason ? { reason: assertion.revocationReason } : {}),
-    };
-  }
-
-  res.type('application/ld+json').json(payload);
+  res.type('application/ld+json').json(assertion.payloadJson);
 });
 
 // GET /keys/:tenantId - Public key document
