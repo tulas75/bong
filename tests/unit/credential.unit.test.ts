@@ -109,6 +109,9 @@ describe('issueCredential', () => {
   it('has achievement matching badge', async () => {
     const { credential: result } = await issueCredential(makeParams());
     const achievement = (result as any).credentialSubject.achievement;
+    expect(achievement.id).toBe(
+      'https://test.example.com/badges/622cf501-bf52-47f5-a5a0-c7f168f3d6bc',
+    );
     expect(achievement.name).toBe('Test Badge');
     expect(achievement.description).toBe('A test badge');
     expect(achievement.criteria.narrative).toBe('Complete the test');

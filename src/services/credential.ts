@@ -108,7 +108,7 @@ export async function issueCredential(
         },
       ],
       achievement: {
-        id: `urn:uuid:${badgeClass.id}`,
+        id: `https://${APP_DOMAIN}/badges/${badgeClass.id}`,
         type: 'Achievement',
         achievementType: badgeClass.achievementType || 'Badge',
         name: badgeClass.name,
