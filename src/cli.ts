@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { Command } from 'commander';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client.js';
-import { Ed25519VerificationKey2020 } from '@digitalcredentials/ed25519-verification-key-2020';
+import * as Ed25519Multikey from '@digitalbazaar/ed25519-multikey';
 import { randomUUID } from 'crypto';
 import { issueBadge } from './services/issuance.js';
 import {
@@ -43,8 +43,8 @@ tenant
   .action(async (opts) => {
     const encryptionKey = getEncryptionKey();
 
-    const keyPair = await Ed25519VerificationKey2020.generate();
-    const exported = keyPair.export({ publicKey: true, privateKey: true });
+    const keyPair = await Ed25519Multikey.generate();
+    const exported = await keyPair.export({ publicKey: true, secretKey: true });
     const rawApiKey = `bong_${randomUUID().replace(/-/g, '')}`;
 
     const apiKeyHash = await hashApiKey(rawApiKey);
@@ -54,7 +54,8 @@ tenant
         name: opts.name,
         url: opts.url,
         publicKeyMultibase: exported.publicKeyMultibase!,
-        privateKeyMultibase: encryptField(exported.privateKeyMultibase!, encryptionKey),
+        // DB column is "privateKeyMultibase" but stores Multikey secretKeyMultibase
+        privateKeyMultibase: encryptField(exported.secretKeyMultibase!, encryptionKey),
         apiKeyPrefix: extractApiKeyPrefix(rawApiKey),
         apiKey: apiKeyHash,
         webhookSecret: opts.webhookSecret ? encryptField(opts.webhookSecret, encryptionKey) : null,

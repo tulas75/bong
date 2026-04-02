@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { Ed25519VerificationKey2020 } from '@digitalcredentials/ed25519-verification-key-2020';
+import * as Ed25519Multikey from '@digitalbazaar/ed25519-multikey';
 import { issueCredential } from '../../src/services/credential';
 
 describe('issueCredential', () => {
@@ -7,10 +7,10 @@ describe('issueCredential', () => {
   let privateKeyMultibase: string;
 
   beforeAll(async () => {
-    const keyPair = await Ed25519VerificationKey2020.generate();
-    const exported = keyPair.export({ publicKey: true, privateKey: true });
+    const keyPair = await Ed25519Multikey.generate();
+    const exported = await keyPair.export({ publicKey: true, secretKey: true });
     publicKeyMultibase = exported.publicKeyMultibase!;
-    privateKeyMultibase = exported.privateKeyMultibase!;
+    privateKeyMultibase = exported.secretKeyMultibase!;
   });
 
   function makeParams(overrides: Record<string, any> = {}) {
@@ -45,7 +45,7 @@ describe('issueCredential', () => {
 
   it('has correct @context', async () => {
     const result = (await issueCredential(makeParams())) as any;
-    expect(result['@context']).toContain('https://www.w3.org/2018/credentials/v1');
+    expect(result['@context']).toContain('https://www.w3.org/ns/credentials/v2');
     expect(result['@context']).toContain(
       'https://purl.imsglobal.org/spec/ob/v3p0/context-3.0.3.json',
     );
@@ -60,7 +60,7 @@ describe('issueCredential', () => {
   it('has issuer matching tenant', async () => {
     const result = (await issueCredential(makeParams())) as any;
     expect(result.issuer.name).toBe('Test Academy');
-    expect(result.issuer.id).toBe('https://test.example.com');
+    expect(result.issuer.id).toBe(`did:key:${publicKeyMultibase}`);
   });
 
   it('has hashed email in credentialSubject', async () => {
@@ -79,9 +79,10 @@ describe('issueCredential', () => {
     expect(achievement.criteria.narrative).toBe('Complete the test');
   });
 
-  it('has Ed25519Signature2020 proof type', async () => {
+  it('has DataIntegrityProof proof type', async () => {
     const result = (await issueCredential(makeParams())) as any;
-    expect(result.proof.type).toBe('Ed25519Signature2020');
+    expect(result.proof.type).toBe('DataIntegrityProof');
+    expect(result.proof.cryptosuite).toBe('eddsa-rdfc-2022');
   });
 
   it('has correct verification URL in id', async () => {
@@ -89,14 +90,14 @@ describe('issueCredential', () => {
     expect(result.id).toBe('https://test.example.com/verify/72910be6-cbde-441c-b602-484884dbc28e');
   });
 
-  it('includes expirationDate when expiresAt is provided', async () => {
+  it('includes validUntil when expiresAt is provided', async () => {
     const expiresAt = new Date('2027-06-01T00:00:00Z');
     const result = (await issueCredential(makeParams({ expiresAt }))) as any;
-    expect(result.expirationDate).toBe('2027-06-01T00:00:00.000Z');
+    expect(result.validUntil).toBe('2027-06-01T00:00:00.000Z');
   });
 
-  it('omits expirationDate when expiresAt is not provided', async () => {
+  it('omits validUntil when expiresAt is not provided', async () => {
     const result = (await issueCredential(makeParams())) as any;
-    expect(result.expirationDate).toBeUndefined();
+    expect(result.validUntil).toBeUndefined();
   });
 });

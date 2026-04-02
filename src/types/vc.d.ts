@@ -1,4 +1,4 @@
-declare module '@digitalcredentials/vc' {
+declare module '@digitalbazaar/vc' {
   export function issue(options: {
     credential: object;
     suite: any;
@@ -10,49 +10,41 @@ declare module '@digitalcredentials/vc' {
     suite: any;
     documentLoader: (url: string) => Promise<any>;
   }): Promise<{ verified: boolean; error?: any }>;
-
-  export function defaultDocumentLoader(
-    url: string,
-  ): Promise<{ contextUrl: string | null; documentUrl: string; document: any }>;
-
-  export class CredentialIssuancePurpose {
-    constructor(options?: any);
-  }
 }
 
-declare module '@digitalcredentials/ed25519-signature-2020' {
-  export class Ed25519Signature2020 {
-    constructor(options?: { key?: any; signer?: any; verifier?: any });
-  }
-  export const suiteContext: {
-    contexts: Map<string, object>;
-    CONTEXT_URL: string;
-    CONTEXT: object;
-  };
-}
-
-declare module '@digitalcredentials/ed25519-verification-key-2020' {
-  export class Ed25519VerificationKey2020 {
+declare module '@digitalbazaar/ed25519-multikey' {
+  interface MultikeyPair {
     id: string;
     type: string;
     controller: string;
     publicKeyMultibase: string;
-    privateKeyMultibase?: string;
-
-    static generate(): Promise<Ed25519VerificationKey2020>;
-    static from(options: {
+    secretKeyMultibase?: string;
+    signer(): any;
+    verifier(): any;
+    export(options: { publicKey?: boolean; secretKey?: boolean }): Promise<{
       id?: string;
-      type?: string;
-      controller?: string;
-      publicKeyMultibase: string;
-      privateKeyMultibase?: string;
-    }): Promise<Ed25519VerificationKey2020>;
-
-    export(options: { publicKey?: boolean; privateKey?: boolean }): {
-      id: string;
       type: string;
-      publicKeyMultibase: string;
-      privateKeyMultibase?: string;
-    };
+      publicKeyMultibase?: string;
+      secretKeyMultibase?: string;
+    }>;
+  }
+
+  export function generate(): Promise<MultikeyPair>;
+  export function from(options: {
+    id?: string;
+    type?: string;
+    controller?: string;
+    publicKeyMultibase: string;
+    secretKeyMultibase?: string;
+  }): Promise<MultikeyPair>;
+}
+
+declare module '@digitalbazaar/eddsa-rdfc-2022-cryptosuite' {
+  export const cryptosuite: any;
+}
+
+declare module '@digitalbazaar/data-integrity' {
+  export class DataIntegrityProof {
+    constructor(options: { cryptosuite: any; signer?: any; verifier?: any });
   }
 }

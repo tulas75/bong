@@ -39,9 +39,9 @@ export function makeAssertion(overrides: Record<string, any> = {}) {
     revokedAt: null,
     revocationReason: null,
     payloadJson: {
-      '@context': ['https://www.w3.org/2018/credentials/v1'],
+      '@context': ['https://www.w3.org/ns/credentials/v2'],
       type: ['VerifiableCredential', 'OpenBadgeCredential'],
-      proof: { type: 'Ed25519Signature2020', proofValue: 'mock' },
+      proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-rdfc-2022', proofValue: 'mock' },
     },
     ...overrides,
   };

@@ -11,9 +11,9 @@ vi.mock('../../src/lib/prisma', () => ({
 
 vi.mock('../../src/services/credential', () => ({
   issueCredential: vi.fn().mockResolvedValue({
-    '@context': ['https://www.w3.org/2018/credentials/v1'],
+    '@context': ['https://www.w3.org/ns/credentials/v2'],
     type: ['VerifiableCredential'],
-    proof: { type: 'Ed25519Signature2020', proofValue: 'mock' },
+    proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-rdfc-2022', proofValue: 'mock' },
   }),
 }));
 

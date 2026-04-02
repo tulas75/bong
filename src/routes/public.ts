@@ -262,11 +262,12 @@ router.get('/keys/:tenantId', async (req: Request, res: Response) => {
     return;
   }
 
+  const didKey = `did:key:${tenant.publicKeyMultibase}`;
   const keyDocument = {
-    '@context': 'https://w3id.org/security/suites/ed25519-2020/v1',
-    id: `https://${APP_DOMAIN}/keys/${tenant.id}#key-0`,
-    type: 'Ed25519VerificationKey2020',
-    controller: tenant.url,
+    '@context': 'https://w3id.org/security/multikey/v1',
+    id: `${didKey}#${tenant.publicKeyMultibase}`,
+    type: 'Multikey',
+    controller: didKey,
     publicKeyMultibase: tenant.publicKeyMultibase,
   };
 
@@ -312,13 +313,13 @@ router.get('/status/list/:tenantId', async (req: Request, res: Response) => {
 
   res.type('application/ld+json').json({
     '@context': [
-      'https://www.w3.org/2018/credentials/v1',
+      'https://www.w3.org/ns/credentials/v2',
       'https://www.w3.org/ns/credentials/status/v1',
     ],
     id: `https://${APP_DOMAIN}/status/list/${tenantId}`,
     type: ['VerifiableCredential', 'BitstringStatusListCredential'],
-    issuer: tenant.url,
-    issued: tenant.createdAt.toISOString(),
+    issuer: `did:key:${tenant.publicKeyMultibase}`,
+    validFrom: tenant.createdAt.toISOString(),
     credentialSubject: {
       id: `https://${APP_DOMAIN}/status/list/${tenantId}#list`,
       type: 'BitstringStatusList',

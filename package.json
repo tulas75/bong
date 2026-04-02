@@ -31,9 +31,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@digitalcredentials/ed25519-signature-2020": "^7.0.0",
-    "@digitalcredentials/ed25519-verification-key-2020": "^5.0.0",
-    "@digitalcredentials/vc": "^10.0.2",
+    "@digitalbazaar/data-integrity": "^2.5.0",
+    "@digitalbazaar/ed25519-multikey": "^1.3.1",
+    "@digitalbazaar/eddsa-rdfc-2022-cryptosuite": "^1.3.0",
+    "@digitalbazaar/vc": "^7.3.0",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "argon2": "^0.44.0",

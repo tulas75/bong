@@ -194,9 +194,9 @@ describe('GET /keys/:tenantId', () => {
     const res = await request(app).get('/keys/58fcdb5a-b604-44bf-8c46-3bd89bc940b0');
 
     expect(res.status).toBe(200);
-    expect(res.body.type).toBe('Ed25519VerificationKey2020');
+    expect(res.body.type).toBe('Multikey');
     expect(res.body.publicKeyMultibase).toBe(tenant.publicKeyMultibase);
-    expect(res.body['@context']).toContain('ed25519-2020');
+    expect(res.body['@context']).toContain('multikey');
   });
 
   it('returns 404 for missing tenant', async () => {
