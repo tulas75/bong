@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { gzipSync } from 'zlib';
 import { prismaUnfiltered } from '../lib/prisma.js';
 import { escapeHtml } from '../lib/crypto.js';
 
@@ -269,7 +270,62 @@ router.get('/keys/:tenantId', async (req: Request, res: Response) => {
     publicKeyMultibase: tenant.publicKeyMultibase,
   };
 
-  res.json(keyDocument);
+  res.type('application/ld+json').send(JSON.stringify(keyDocument));
+});
+
+// GET /status/list/:tenantId - W3C Bitstring Status List (revocation)
+router.get('/status/list/:tenantId', async (req: Request, res: Response) => {
+  const tenantId = req.params.tenantId as string;
+  const tenant = await prismaUnfiltered.tenant.findUnique({
+    where: { id: tenantId },
+  });
+
+  if (!tenant) {
+    res.status(404).json({ error: 'Tenant not found' });
+    return;
+  }
+
+  // Fetch all revoked assertions with a statusListIndex (including soft-deleted)
+  const revoked = await prismaUnfiltered.assertion.findMany({
+    where: { tenantId, statusListIndex: { not: null }, revokedAt: { not: null } },
+    select: { statusListIndex: true },
+  });
+
+  // W3C spec mandates minimum 16KB (131,072 bits) bitstring
+  const MINIMUM_BITSTRING_SIZE = 131072;
+  const bitstringLength = Math.max(MINIMUM_BITSTRING_SIZE, tenant.nextStatusIndex);
+
+  // Build bitstring buffer (MSB-first bit ordering per spec)
+  const byteLength = Math.ceil(bitstringLength / 8);
+  const buffer = Buffer.alloc(byteLength);
+  for (const { statusListIndex } of revoked) {
+    if (statusListIndex !== null) {
+      const byteIndex = Math.floor(statusListIndex / 8);
+      const bitIndex = 7 - (statusListIndex % 8);
+      buffer[byteIndex] |= 1 << bitIndex;
+    }
+  }
+
+  // GZIP compress → Base64URL (no padding)
+  const compressed = gzipSync(buffer);
+  const encodedList = compressed.toString('base64url');
+
+  res.type('application/ld+json').json({
+    '@context': [
+      'https://www.w3.org/2018/credentials/v1',
+      'https://www.w3.org/ns/credentials/status/v1',
+    ],
+    id: `https://${APP_DOMAIN}/status/list/${tenantId}`,
+    type: ['VerifiableCredential', 'BitstringStatusListCredential'],
+    issuer: tenant.url,
+    issued: tenant.createdAt.toISOString(),
+    credentialSubject: {
+      id: `https://${APP_DOMAIN}/status/list/${tenantId}#list`,
+      type: 'BitstringStatusList',
+      statusPurpose: 'revocation',
+      encodedList,
+    },
+  });
 });
 
 export default router;

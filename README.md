@@ -63,7 +63,8 @@ bong badge create \
   --description "Awarded for completing Python basics" \
   --image "https://example.com/badge.png" \
   --criteria "Pass the final exam with 80%+" \
-  --course-id "PY101"
+  --course-id "PY101" \
+  --type "Certificate"
 
 # Create with a custom verification page template
 bong badge create \
@@ -106,6 +107,10 @@ bong assertion delete <assertion-id>
 
 # GDPR anonymize (irreversibly scramble all PII)
 bong assertion anonymize <assertion-id>
+
+# Re-generate baked badge image (PNG/SVG with embedded credential)
+bong assertion bake <assertion-id>
+bong assertion bake <assertion-id> --output ./my-badge.png
 ```
 
 ### Stats
@@ -154,9 +159,12 @@ Create a new badge class.
   "description": "Awarded for completing the React Advanced course.",
   "imageUrl": "https://example.com/badge.png",
   "criteria": "Complete all modules and pass the final assessment.",
+  "achievementType": "Certificate",
   "externalCourseId": "987654"
 }
 ```
+
+The `achievementType` field is optional (defaults to `"Badge"`). Valid values: `Achievement`, `Assessment`, `Award`, `Badge`, `Certificate`, `Certification`, `Course`, `Degree`, `Diploma`, `License`, `MicroCredential`.
 
 #### `POST /api/v1/assertions`
 
@@ -216,12 +224,13 @@ If the tenant has a webhook secret, the request must include an `X-Webhook-Signa
 | `GET /` | Landing page |
 | `GET /verify/:assertionId` | HTML verification page (shows revocation/expiration status) |
 | `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/ld+json`) |
-| `GET /keys/:tenantId` | Tenant's public key document (Ed25519VerificationKey2020) |
+| `GET /keys/:tenantId` | Tenant's public key document (`application/ld+json`) |
+| `GET /status/list/:tenantId` | W3C Bitstring Status List for revocation checking |
 | `GET /health` | Health check |
 
 ## Email Notifications
 
-When a badge is issued (via API, webhook, or CLI), an email is automatically sent to the recipient with the badge name, issuer, and a link to the verification page. Configure the `SMTP_*` environment variables to enable. If `SMTP_HOST` is not set, emails are silently skipped. Email failures are logged but never block badge issuance.
+When a badge is issued (via API, webhook, or CLI), an email is automatically sent to the recipient with the badge name, issuer, and a link to the verification page. The email also includes a **baked badge image** attachment (PNG/SVG with the signed credential embedded per IMS Global Sec 5.3), enabling offline verification via digital wallets. If baking fails (e.g. unreachable image URL), the email is sent without the attachment. Configure the `SMTP_*` environment variables to enable. If `SMTP_HOST` is not set, emails are silently skipped. Email failures are logged but never block badge issuance.
 
 ## Security
 
@@ -234,6 +243,16 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 - **CORS** — configurable via `CORS_ORIGINS`
 - **Duplicate prevention** — partial unique index on `(badgeClassId, recipientEmail)` for active records, returns `409`
 - **Audit logging** — structured pino logs for auth, issuance, revocation, and webhooks
+
+## Open Badges v3 Compliance
+
+- **W3C Bitstring Status List** — Public `/status/list/:tenantId` endpoint for programmatic revocation checking. Bitstring is GZIP-compressed and Base64URL-encoded per spec (16KB minimum).
+- **Atomic status indexing** — Each assertion gets a unique `statusListIndex` assigned via atomic database transaction, preventing race conditions on concurrent issuance.
+- **`credentialStatus`** — Embedded in the signed VC payload as `BitstringStatusListEntry`, pointing to the tenant's status list endpoint.
+- **Achievement types** — Badge classes support OB3 `achievementType` (Badge, Certificate, Course, Diploma, etc.) injected into the signed credential.
+- **Image baking** — Signed credentials are embedded into badge images (PNG iTXt chunk / SVG XML element) per IMS Global Sec 5.3, attached to notification emails and available via CLI.
+- **Public key endpoint** — `/keys/:tenantId` serves `application/ld+json` for external signature verification.
+- **OB3 3.0.3 context** — Credentials use the `context-3.0.3.json` Open Badges context with `identifier` as array for strict validator compliance.
 
 ## Data Integrity (No-Delete Policy)
 
@@ -287,6 +306,8 @@ npm run test:watch
 │   │   └── public.ts        # Verification page, raw credential, public keys
 │   └── services/
 │       ├── credential.ts    # W3C VC issuance with Ed25519Signature2020
+│       ├── issuance.ts      # Atomic badge issuance (transaction + signing)
+│       ├── baking.ts        # PNG/SVG image baking (IMS Global Sec 5.3)
 │       ├── email.ts         # Badge notification emails via SMTP
 │       └── softDelete.ts    # Cascading soft-delete logic
 ├── tests/

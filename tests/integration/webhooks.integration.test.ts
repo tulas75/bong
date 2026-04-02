@@ -5,22 +5,18 @@ import { mockPrisma } from '../helpers/mockPrisma';
 import { setupAuthenticatedTenant, TEST_API_KEY } from '../helpers/authHelper';
 import { makeBadgeClass, makeAssertion } from '../helpers/fixtures';
 import { encryptField } from '../../src/lib/crypto';
+import { issueBadge } from '../../src/services/issuance';
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: mockPrisma,
   prismaUnfiltered: mockPrisma,
 }));
 
-vi.mock('../../src/services/credential', () => ({
-  issueCredential: vi.fn().mockResolvedValue({
-    '@context': ['https://www.w3.org/2018/credentials/v1'],
-    type: ['VerifiableCredential'],
-    proof: { type: 'Ed25519Signature2020', proofValue: 'mock' },
+vi.mock('../../src/services/issuance', () => ({
+  issueBadge: vi.fn().mockResolvedValue({
+    assertion: makeAssertion(),
+    verifyUrl: 'https://localhost:3000/verify/72910be6-cbde-441c-b602-484884dbc28e',
   }),
-}));
-
-vi.mock('../../src/services/email', () => ({
-  sendBadgeIssuedEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
 import app from '../../src/app';
@@ -55,7 +51,6 @@ describe('POST /api/v1/webhooks/course-completed', () => {
   it('returns 201 without HMAC when tenant has no webhook secret', async () => {
     await setupAuthenticatedTenant({ webhookSecret: null });
     mockPrisma.badgeClass.findFirst.mockResolvedValue(makeBadgeClass());
-    mockPrisma.assertion.create.mockResolvedValue(makeAssertion());
 
     const res = await request(app)
       .post('/api/v1/webhooks/course-completed')
@@ -71,7 +66,6 @@ describe('POST /api/v1/webhooks/course-completed', () => {
       webhookSecret: encryptField(WEBHOOK_SECRET, encKey),
     });
     mockPrisma.badgeClass.findFirst.mockResolvedValue(makeBadgeClass());
-    mockPrisma.assertion.create.mockResolvedValue(makeAssertion());
 
     const signature = signPayload(validPayload, WEBHOOK_SECRET);
 
@@ -142,7 +136,7 @@ describe('POST /api/v1/webhooks/course-completed', () => {
   it('returns 409 on duplicate webhook delivery', async () => {
     await setupAuthenticatedTenant();
     mockPrisma.badgeClass.findFirst.mockResolvedValue(makeBadgeClass());
-    mockPrisma.assertion.create.mockRejectedValue({ code: 'P2002' });
+    (issueBadge as any).mockRejectedValueOnce({ code: 'P2002' });
 
     const res = await request(app)
       .post('/api/v1/webhooks/course-completed')

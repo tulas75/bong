@@ -1,13 +1,10 @@
 import { Router, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../lib/prisma.js';
+import { prismaUnfiltered } from '../lib/prisma.js';
 import { createAssertionSchema, revokeAssertionSchema } from '../lib/schemas.js';
-import { issueCredential } from '../services/credential.js';
-import { sendBadgeIssuedEmail } from '../services/email.js';
+import { issueBadge } from '../services/issuance.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { audit } from '../lib/logger.js';
-
-const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
 const router = Router();
 
@@ -29,32 +26,17 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     return;
   }
 
-  const assertionId = uuidv4();
-  const issuedOn = new Date();
   const expiresAt = expiresAtStr ? new Date(expiresAtStr) : undefined;
 
-  const signedCredential = await issueCredential({
-    assertionId,
-    tenant: req.tenant!,
-    badgeClass,
-    recipientEmail,
-    recipientName,
-    issuedOn,
-    expiresAt,
-  });
-
-  let assertion;
+  let result;
   try {
-    assertion = await prisma.assertion.create({
-      data: {
-        id: assertionId,
-        badgeClassId,
-        recipientEmail,
-        recipientName,
-        issuedOn,
-        expiresAt: expiresAt || null,
-        payloadJson: signedCredential as any,
-      },
+    result = await issueBadge({
+      prisma: prismaUnfiltered,
+      tenant: req.tenant!,
+      badgeClass,
+      recipientEmail,
+      recipientName,
+      expiresAt,
     });
   } catch (err: any) {
     if (err.code === 'P2002') {
@@ -65,22 +47,17 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   }
 
   audit.info(
-    { tenantId: req.tenant!.id, assertionId, badgeClassId, recipientEmail, ip: req.ip },
+    {
+      tenantId: req.tenant!.id,
+      assertionId: result.assertion.id,
+      badgeClassId,
+      recipientEmail,
+      ip: req.ip,
+    },
     'assertion_issued',
   );
 
-  await sendBadgeIssuedEmail({
-    recipientEmail,
-    recipientName,
-    badgeName: badgeClass.name,
-    badgeDescription: badgeClass.description,
-    badgeImageUrl: badgeClass.imageUrl,
-    issuerName: req.tenant!.name,
-    verifyUrl: `https://${APP_DOMAIN}/verify/${assertion.id}`,
-    expiresAt: expiresAt || null,
-  });
-
-  res.status(201).json(assertion);
+  res.status(201).json(result.assertion);
 });
 
 router.post('/:id/revoke', async (req: AuthenticatedRequest, res: Response) => {

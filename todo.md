@@ -23,13 +23,46 @@
   - Questa operazione di *Scrambling* implicherà di default lo scatter del flag `deletedAt = now()`: l'Assertion diventa un record orfano occupando spazio solo a fini statistici ed impedendo conflitti infrastrutturali.
 - [x] Creare un Trigger PostgreSQL con migrazione raw per bloccare fisicamente le istruzioni SQL standard di `DELETE` a livello di driver/database lanciando un EXCEPTION, ottenendo una blindatura completa.
 
-## Open Badge v3 Compliance (StatusList2021 & Public Key)
-
+## Task: Full Compliance Open Badge v3 (W3C StatusList2021 & Linked Data)
 **Priority:** High
-**Related:** `src/routes/public.ts`, `prisma/schema.prisma`
+**Related:** `prisma/schema.prisma`, `src/routes/public.ts`, `src/lib/issuance.ts`
 
-- [ ] Implement a public endpoint `/status/list` following the 'W3C StatusList2021' standard. This must allow external validators to verify if a badge has been revoked by reading the `revokedAt` field in the database.
-- [ ] Update the `/keys/:tenantId` route (defined in the `verificationMethod` of the JSON) to explicitly return the Public Key with the `application/ld+json` content type format, otherwise external systems cannot validate the signature.
+### 1. Database & Concorrenza (Atomic Indexing)
+- [x] **Schema Update**: Aggiungere `nextStatusIndex Int @default(0)` al modello `Tenant` e `statusListIndex Int?` al modello `Assertion`.
+- [x] **Indice di Unicità**: Implementare un indice unico composto `@@unique([tenantId, statusListIndex])` per garantire che non esistano mai due badge con la stessa posizione nella lista dello stesso Tenant. (Attenzione: andrà implementato nel DB / Prisma a livello di Tenant, ma Assertion potrebbe non avere tenantId diretto, va verificata la relazione).
+- [x] **Data Migration**: Creare uno script/migrazione per assegnare retroattivamente un `statusListIndex` sequenziale (0, 1, 2...) a tutte le Assertion già esistenti nel database.
+- [x] **Atomic Issuance**: Modificare la logica di emissione badge utilizzando una Prisma Transaction. Il contatore `nextStatusIndex` del Tenant deve essere incrementato atomicamente (`{ increment: 1 }`) e il valore restituito deve essere usato come `statusListIndex` per la nuova Assertion. *Nota: Questo previene race conditions in caso di emissioni simultanee.*
+
+### 2. Implementazione W3C StatusList2021
+- [x] **Endpoint `/status/list`**: Creare una rotta pubblica che generi il documento di stato per ogni Tenant (`/status/list/:tenantId`).
+- [x] **Encoding Logic**:
+  - Generare una bitstring dove il bit all'indice X è 1 se l'Assertion con `statusListIndex = X` ha `revokedAt !== null`, altrimenti 0.
+  - Comprimere la bitstring utilizzando GZIP (libreria `zlib`).
+  - Codificare il risultato in Base64URL (senza padding), come richiesto dal Technical Report W3C.
+- [x] **JSON-LD Structure**: La risposta deve includere:
+  - `@context`: `https://www.w3.org/ns/credentials/status/v1`
+  - `type`: `BitstringStatusListCredential` / `BitstringStatusList` / `BitstringStatusListEntry` (updated to W3C Bitstring Status List spec).
+  - L'array codificato `encodedList`.
+
+### 3. Linked Data & Public Keys
+- [x] **Mime-Type Enforcement**: Aggiornare la rotta `/keys/:tenantId` per forzare l'header `Content-Type: application/ld+json`. Sostituire `res.json()` con un invio esplicito del body stringificato per garantire la compatibilità con i validatori crittografici esterni.
+- [x] **Integration**: Assicurarsi che nel JSON del badge (`Assertion payload`), il campo `credentialStatus` punti correttamente all'URL dell'endpoint `/status/list/:tenantId` appena creato e includa il relativo `statusListIndex`.
+
+### 4. Achievement Type (IMS Global Specification)
+- [x] **Schema Update**: Aggiungere un campo `achievementType String @default("Badge")` al modello `BadgeClass` in Prisma.
+- [x] **Data Model Validation**: Vincolare la stringa ad accettare idealmente l'enumerazione dettata dallo standard OBv3 3.0 (es. `Achievement`, `Assessment`, `Award`, `Badge`, `Certificate`, `Certification`, `Course`, `Degree`, `Diploma`, `License`, `MicroCredential`).
+- [x] **JSON Integration**: Durante la composizione del Badge, iniettare esplicitamente la proprietà `achievementType` (leggendola dal DB) come stringa valoriale dentro l'oggetto radice dell'`Achievement` (annidato in `credentialSubject.achievement`). Garantire il fallback a `"Badge"` per compatibilità pregressa.
+
+### 5. "Baking" (JSON-LD Image Embedding) - IMS Global Sec 5.3
+- [x] **CLI Baking Command**: Implementare il comando `bong assertion bake <id>` per consentire l'esportazione "offline" della Verifiable Credential.
+- [x] **Image Processing (PNG/SVG)**: Il comando dovrà recuperare l'immagine nativa della `BadgeClass` collegata (se PNG o SVG). Per i file PNG, assicurarsi rigorosamente che il chunk testuale sia non compresso (`compression: 0`) e la keyword sia `openbadgescredential` come da Spec 5.3.1.1. Per i file SVG, usare un parser XML per aggiungere l'attributo `xmlns:openbadges` e iniettare nel DOM il tag `<openbadges:credential>` col payload JSON-LD in un blocco `CDATA` (Spec 5.3.2.1).
+- [x] **iTXt / Metadata Injection**: Usare una libreria adatta (es. buffer manipulation o pacchetti come `pngitxt`) per incapsulare in modo compliant l'intera stringa del payload JSON-LD dell'Assertion all'interno del chunk testuale `iTXt` dell'immagine, producendo un file auto-contenuto e compatibile con i digital wallet offline.
+- [x] **Email Integration**: Baked image auto-attached to badge notification email. CLI `bong assertion bake <id>` available as fallback for re-generation.
+
+### 6. Verifiable Credentials v2 Data Model (Breaking Change OBv3)
+- [x] **Context Update**: Aggiornato l'array `@context` per utilizzare `context-3.0.3.json`. Nota: il context VC v2 (`credentials/v2`) causa conflitti `@protected` con la libreria `@digitalcredentials/vc` (Ed25519Signature2020). Si mantiene VC v1 come base finché non si migra a un signing suite nativo VC v2.
+- [ ] **Credential Schema**: Bloccato — il tipo `1EdTechJsonSchemaValidator2019` non è definito nei context JSON-LD cachati. Richiede upgrade del signing suite a VC v2-native (es. Data Integrity / ecdsa-sd-2023) per supportare il safe mode.
+- [x] **Identifier Compliance**: Assicurarsi che l'oggetto privacy-preserving `identifier` (di tipo `IdentityObject` contenente l'hash della mail) dentro la radice di `credentialSubject` sia eventualmente formato come array o accompagnato da un campo `id` generico per soddisfare gli standard sintattici e i validatori di Verifiable Credentials v2.
 
 ## Implementare il Salt per l'hashing di `identityHash`
 

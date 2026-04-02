@@ -46,7 +46,9 @@ describe('issueCredential', () => {
   it('has correct @context', async () => {
     const result = (await issueCredential(makeParams())) as any;
     expect(result['@context']).toContain('https://www.w3.org/2018/credentials/v1');
-    expect(result['@context']).toContain('https://purl.imsglobal.org/spec/ob/v3p0/context.json');
+    expect(result['@context']).toContain(
+      'https://purl.imsglobal.org/spec/ob/v3p0/context-3.0.3.json',
+    );
   });
 
   it('includes OpenBadgeCredential type', async () => {
@@ -63,7 +65,7 @@ describe('issueCredential', () => {
 
   it('has hashed email in credentialSubject', async () => {
     const result = (await issueCredential(makeParams())) as any;
-    const identifier = result.credentialSubject.identifier;
+    const identifier = result.credentialSubject.identifier[0];
     expect(identifier.hashed).toBe(true);
     expect(identifier.identityHash).toMatch(/^sha256\$/);
     expect(identifier.identityType).toBe('emailAddress');

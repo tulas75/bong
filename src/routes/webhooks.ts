@@ -1,14 +1,11 @@
 import { Router, Response } from 'express';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../lib/prisma.js';
+import { prismaUnfiltered } from '../lib/prisma.js';
 import { courseCompletionWebhookSchema } from '../lib/schemas.js';
-import { issueCredential } from '../services/credential.js';
-import { sendBadgeIssuedEmail } from '../services/email.js';
+import { issueBadge } from '../services/issuance.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { audit } from '../lib/logger.js';
-
-const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
 const router = Router();
 
@@ -62,29 +59,14 @@ router.post('/course-completed', async (req: AuthenticatedRequest, res: Response
   const recipientEmail = payload.user.email;
   const recipientName = `${payload.user.first_name} ${payload.user.last_name}`;
 
-  const assertionId = uuidv4();
-  const issuedOn = new Date();
-
-  const signedCredential = await issueCredential({
-    assertionId,
-    tenant: req.tenant!,
-    badgeClass,
-    recipientEmail,
-    recipientName,
-    issuedOn,
-  });
-
-  let assertion;
+  let result;
   try {
-    assertion = await prisma.assertion.create({
-      data: {
-        id: assertionId,
-        badgeClassId: badgeClass.id,
-        recipientEmail,
-        recipientName,
-        issuedOn,
-        payloadJson: signedCredential as any,
-      },
+    result = await issueBadge({
+      prisma: prismaUnfiltered,
+      tenant: req.tenant!,
+      badgeClass,
+      recipientEmail,
+      recipientName,
     });
   } catch (err: any) {
     if (err.code === 'P2002') {
@@ -97,7 +79,7 @@ router.post('/course-completed', async (req: AuthenticatedRequest, res: Response
   audit.info(
     {
       tenantId: req.tenant!.id,
-      assertionId,
+      assertionId: result.assertion.id,
       badgeClassId: badgeClass.id,
       recipientEmail,
       courseId,
@@ -106,17 +88,7 @@ router.post('/course-completed', async (req: AuthenticatedRequest, res: Response
     'assertion_issued_via_webhook',
   );
 
-  await sendBadgeIssuedEmail({
-    recipientEmail,
-    recipientName,
-    badgeName: badgeClass.name,
-    badgeDescription: badgeClass.description,
-    badgeImageUrl: badgeClass.imageUrl,
-    issuerName: req.tenant!.name,
-    verifyUrl: `https://${APP_DOMAIN}/verify/${assertion.id}`,
-  });
-
-  res.status(201).json(assertion);
+  res.status(201).json(result.assertion);
 });
 
 export default router;

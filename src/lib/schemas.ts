@@ -5,6 +5,21 @@ export const createBadgeClassSchema = z.object({
   description: z.string().min(1),
   imageUrl: z.string().url(),
   criteria: z.string().min(1),
+  achievementType: z
+    .enum([
+      'Achievement',
+      'Assessment',
+      'Award',
+      'Badge',
+      'Certificate',
+      'Certification',
+      'Course',
+      'Degree',
+      'Diploma',
+      'License',
+      'MicroCredential',
+    ])
+    .default('Badge'),
   externalCourseId: z.string().optional(),
   templateHtml: z.string().optional(),
 });

@@ -3,22 +3,18 @@ import request from 'supertest';
 import { mockPrisma } from '../helpers/mockPrisma';
 import { setupAuthenticatedTenant, TEST_API_KEY } from '../helpers/authHelper';
 import { makeTenant, makeBadgeClass, makeAssertion } from '../helpers/fixtures';
+import { issueBadge } from '../../src/services/issuance';
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: mockPrisma,
   prismaUnfiltered: mockPrisma,
 }));
 
-vi.mock('../../src/services/credential', () => ({
-  issueCredential: vi.fn().mockResolvedValue({
-    '@context': ['https://www.w3.org/2018/credentials/v1'],
-    type: ['VerifiableCredential'],
-    proof: { type: 'Ed25519Signature2020', proofValue: 'mock' },
+vi.mock('../../src/services/issuance', () => ({
+  issueBadge: vi.fn().mockResolvedValue({
+    assertion: makeAssertion(),
+    verifyUrl: 'https://localhost:3000/verify/72910be6-cbde-441c-b602-484884dbc28e',
   }),
-}));
-
-vi.mock('../../src/services/email', () => ({
-  sendBadgeIssuedEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
 import app from '../../src/app';
@@ -37,7 +33,6 @@ describe('POST /api/v1/assertions', () => {
   it('returns 201 on valid assertion', async () => {
     await setupAuthenticatedTenant();
     mockPrisma.badgeClass.findFirst.mockResolvedValue(makeBadgeClass());
-    mockPrisma.assertion.create.mockResolvedValue(makeAssertion());
 
     const res = await request(app)
       .post('/api/v1/assertions')
@@ -86,7 +81,7 @@ describe('POST /api/v1/assertions', () => {
   it('returns 409 on duplicate assertion', async () => {
     await setupAuthenticatedTenant();
     mockPrisma.badgeClass.findFirst.mockResolvedValue(makeBadgeClass());
-    mockPrisma.assertion.create.mockRejectedValue({ code: 'P2002' });
+    (issueBadge as any).mockRejectedValueOnce({ code: 'P2002' });
 
     const res = await request(app)
       .post('/api/v1/assertions')
@@ -111,9 +106,6 @@ describe('POST /api/v1/assertions', () => {
   it('accepts optional expiresAt', async () => {
     await setupAuthenticatedTenant();
     mockPrisma.badgeClass.findFirst.mockResolvedValue(makeBadgeClass());
-    mockPrisma.assertion.create.mockResolvedValue(
-      makeAssertion({ expiresAt: new Date('2027-01-01') }),
-    );
 
     const res = await request(app)
       .post('/api/v1/assertions')

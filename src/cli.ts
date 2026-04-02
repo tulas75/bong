@@ -5,9 +5,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client.js';
 import { Ed25519VerificationKey2020 } from '@digitalcredentials/ed25519-verification-key-2020';
 import { randomUUID } from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
-import { issueCredential } from './services/credential.js';
-import { sendBadgeIssuedEmail } from './services/email.js';
+import { issueBadge } from './services/issuance.js';
 import {
   encryptField,
   decryptField,
@@ -149,6 +147,7 @@ badge
   .requiredOption('--description <desc>', 'Badge description')
   .requiredOption('--image <url>', 'Badge image URL')
   .requiredOption('--criteria <criteria>', 'Criteria to earn the badge')
+  .option('--type <type>', 'Achievement type (Badge, Certificate, Course, etc.)', 'Badge')
   .option('--course-id <courseId>', 'External course ID (for LMS webhooks)')
   .option('--template <filePath>', 'Path to custom HTML template file')
   .action(async (opts) => {
@@ -171,6 +170,7 @@ badge
         description: opts.description,
         imageUrl: opts.image,
         criteria: opts.criteria,
+        achievementType: opts.type,
         externalCourseId: opts.courseId || null,
         templateHtml,
       },
@@ -251,32 +251,17 @@ badge
       privateKeyMultibase: decryptField(badgeClass.tenant.privateKeyMultibase, encryptionKey),
     };
 
-    const assertionId = uuidv4();
-    const issuedOn = new Date();
     const expiresAt = opts.expires ? new Date(opts.expires) : undefined;
 
-    const signedCredential = await issueCredential({
-      assertionId,
-      tenant: tenantDecrypted,
-      badgeClass,
-      recipientEmail: opts.email,
-      recipientName: opts.name,
-      issuedOn,
-      expiresAt,
-    });
-
-    let assertion;
+    let result;
     try {
-      assertion = await prisma.assertion.create({
-        data: {
-          id: assertionId,
-          badgeClassId: badgeId,
-          recipientEmail: opts.email,
-          recipientName: opts.name,
-          issuedOn,
-          expiresAt: expiresAt || null,
-          payloadJson: signedCredential as any,
-        },
+      result = await issueBadge({
+        prisma: basePrisma,
+        tenant: tenantDecrypted,
+        badgeClass,
+        recipientEmail: opts.email,
+        recipientName: opts.name,
+        expiresAt,
       });
     } catch (err: any) {
       if (err.code === 'P2002') {
@@ -286,27 +271,13 @@ badge
       throw err;
     }
 
-    const appDomain = process.env.APP_DOMAIN || 'localhost:3000';
-    const verifyUrl = `https://${appDomain}/verify/${assertion.id}`;
-
-    await sendBadgeIssuedEmail({
-      recipientEmail: opts.email,
-      recipientName: opts.name,
-      badgeName: badgeClass.name,
-      badgeDescription: badgeClass.description,
-      badgeImageUrl: badgeClass.imageUrl,
-      issuerName: badgeClass.tenant.name,
-      verifyUrl,
-      expiresAt: expiresAt || null,
-    });
-
     console.log('\nBadge issued:');
-    console.log(`  Assertion ID: ${assertion.id}`);
+    console.log(`  Assertion ID: ${result.assertion.id}`);
     console.log(`  Badge:        ${badgeClass.name}`);
     console.log(`  Recipient:    ${opts.name} <${opts.email}>`);
-    console.log(`  Issued On:    ${issuedOn.toISOString().split('T')[0]}`);
+    console.log(`  Issued On:    ${result.assertion.issuedOn.toISOString().split('T')[0]}`);
     if (expiresAt) console.log(`  Expires:      ${expiresAt.toISOString().split('T')[0]}`);
-    console.log(`  Verify URL:   ${verifyUrl}`);
+    console.log(`  Verify URL:   ${result.verifyUrl}`);
   });
 
 // ─── Assertion commands ──────────────────────────────────────────
@@ -357,6 +328,37 @@ assertion
 
     console.log(`\nAssertion "${assertionId}" marked as deleted (Soft).`);
     console.log(`  Note: To officially invalidate the credential, use "bong assertion revoke".`);
+  });
+
+assertion
+  .command('bake <assertionId>')
+  .description('Re-generate the baked badge image (PNG/SVG with embedded credential)')
+  .option('--output <path>', 'Output file path')
+  .action(async (assertionId, opts) => {
+    const a = await basePrisma.assertion.findUnique({
+      where: { id: assertionId },
+      include: { badgeClass: true },
+    });
+    if (!a) {
+      console.error(`Assertion "${assertionId}" not found.`);
+      process.exit(1);
+    }
+
+    const { bakeCredentialImage } = await import('./services/baking.js');
+    const credentialJson = JSON.stringify(a.payloadJson);
+    const baked = await bakeCredentialImage(a.badgeClass.imageUrl, credentialJson);
+
+    if (!baked) {
+      console.error(
+        'Failed to bake image. The badge image may be unreachable or in an unsupported format.',
+      );
+      process.exit(1);
+    }
+
+    const fs = await import('fs');
+    const outputPath = opts.output || `./baked-badge.${baked.extension}`;
+    fs.writeFileSync(outputPath, baked.buffer);
+    console.log(`\nBaked badge image saved to: ${outputPath}`);
   });
 
 assertion

@@ -33,6 +33,7 @@ export interface BadgeIssuedEmailParams {
   issuerName: string;
   verifyUrl: string;
   expiresAt?: Date | null;
+  bakedImage?: { buffer: Buffer; filename: string } | null;
 }
 
 export async function sendBadgeIssuedEmail(params: BadgeIssuedEmailParams): Promise<void> {
@@ -51,6 +52,7 @@ export async function sendBadgeIssuedEmail(params: BadgeIssuedEmailParams): Prom
     issuerName,
     verifyUrl,
     expiresAt,
+    bakedImage,
   } = params;
 
   const expirationLine = expiresAt
@@ -89,6 +91,9 @@ export async function sendBadgeIssuedEmail(params: BadgeIssuedEmailParams): Prom
       to: recipientEmail,
       subject: `You earned: ${badgeName}`,
       html,
+      attachments: bakedImage
+        ? [{ filename: bakedImage.filename, content: bakedImage.buffer }]
+        : [],
     });
     logger.info({ recipientEmail, badgeName }, 'badge_email_sent');
   } catch (err) {
