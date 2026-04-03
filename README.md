@@ -222,14 +222,15 @@ If the tenant has a webhook secret, the request must include an `X-Webhook-Signa
 
 ### Public (no auth)
 
-| Endpoint                              | Description                                                 |
-| ------------------------------------- | ----------------------------------------------------------- |
-| `GET /`                               | Landing page                                                |
-| `GET /verify/:assertionId`            | HTML verification page (shows revocation/expiration status) |
-| `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/ld+json`)    |
-| `GET /keys/:tenantId`                 | Tenant's public key document (`application/ld+json`)        |
-| `GET /status/list/:tenantId`          | W3C Bitstring Status List for revocation checking           |
-| `GET /health`                         | Health check                                                |
+| Endpoint                              | Description                                                                 |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `GET /`                               | Landing page                                                                |
+| `GET /verify/:assertionId`            | HTML verification page (returns JSON-LD when `Accept: application/ld+json`) |
+| `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/ld+json`)                    |
+| `GET /badges/:assertionId/image`      | Dynamically baked badge image (PNG/SVG with embedded credential)            |
+| `GET /keys/:tenantId`                 | Tenant's public key document (`application/ld+json`)                        |
+| `GET /status/list/:tenantId`          | W3C Bitstring Status List for revocation checking                           |
+| `GET /health`                         | Health check                                                                |
 
 ## Email Notifications
 
@@ -254,6 +255,9 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 - **`credentialStatus`** — Embedded in the signed VC payload as `BitstringStatusListEntry`, pointing to the tenant's status list endpoint.
 - **Achievement types** — Badge classes support OB3 `achievementType` (Badge, Certificate, Course, Diploma, etc.) injected into the signed credential.
 - **Image baking** — Signed credentials are embedded into badge images (PNG iTXt chunk / SVG XML element) per IMS Global Sec 5.3, attached to notification emails and available via CLI.
+- **Baked image endpoint** — `GET /badges/:assertionId/image` dynamically bakes the credential into the badge image on demand, enabling validator PNG upload and baked image download from the verification page.
+- **Content negotiation** — `GET /verify/:assertionId` returns `application/ld+json` when the `Accept` header includes `application/ld+json`, enabling OB3 validators to resolve credential URLs.
+- **Credential `id` resolution** — The credential `id` field points to `/api/v1/assertions/:id`, which always returns `application/ld+json`, ensuring validators can dereference credential identifiers without content negotiation.
 - **Public key endpoint** — `/keys/:tenantId` serves `application/ld+json` for external signature verification.
 - **OB3 3.0.3 context** — Credentials use the `context-3.0.3.json` Open Badges context with `identifier` as array for strict validator compliance.
 
@@ -279,7 +283,7 @@ npm test
 npm run test:watch
 ```
 
-108 tests covering crypto, schemas, credential signing, auth, all API routes, and revocation/expiration flows. Tests use mocked Prisma (no database required).
+Over 100 tests covering crypto, schemas, credential signing, auth, all API routes, and revocation/expiration flows. Tests use mocked Prisma (no database required).
 
 ## Project Structure
 
@@ -306,7 +310,7 @@ npm run test:watch
 │   │   ├── badges.ts        # Badge class creation
 │   │   ├── assertions.ts    # Assertion issuance + revocation
 │   │   ├── webhooks.ts      # Course-completion webhook
-│   │   └── public.ts        # Verification page, raw credential, public keys
+│   │   └── public.ts        # Verification page, raw credential, public keys, baked images
 │   └── services/
 │       ├── credential.ts    # W3C VC issuance with Ed25519Signature2020
 │       ├── issuance.ts      # Atomic badge issuance (transaction + signing)

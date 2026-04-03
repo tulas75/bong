@@ -126,7 +126,7 @@ describe('issueCredential', () => {
   it('has correct verification URL in id', async () => {
     const { credential: result } = await issueCredential(makeParams());
     expect((result as any).id).toBe(
-      'https://test.example.com/verify/72910be6-cbde-441c-b602-484884dbc28e',
+      'https://test.example.com/api/v1/assertions/72910be6-cbde-441c-b602-484884dbc28e',
     );
   });
 

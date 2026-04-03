@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prismaUnfiltered } from '../lib/prisma.js';
 import { escapeHtml, decryptField, getEncryptionKey } from '../lib/crypto.js';
 import { signStatusListCredential } from '../services/statusList.js';
+import { bakeCredentialImage } from '../services/baking.js';
 
 const router = Router();
 
@@ -165,6 +166,13 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   }
 
   const { badgeClass } = assertion;
+
+  const accept = req.headers.accept || '';
+  if (accept.includes('application/ld+json')) {
+    res.type('application/ld+json').json(assertion.payloadJson);
+    return;
+  }
+
   const verifyUrl = `https://${APP_DOMAIN}/verify/${assertion.id}`;
   const jsonUrl = `https://${APP_DOMAIN}/api/v1/assertions/${assertion.id}`;
 
@@ -197,7 +205,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   const templateVars: Record<string, string> = {
     badgeName: badgeClass.name,
     badgeDescription: badgeClass.description,
-    badgeImageUrl: badgeClass.imageUrl,
+    badgeImageUrl: `https://${APP_DOMAIN}/badges/${assertion.id}/image`,
     badgeCriteria: badgeClass.criteria,
     recipientName: assertion.recipientName,
     recipientEmail: assertion.recipientEmail,
@@ -237,6 +245,34 @@ router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response
   }
 
   res.type('application/ld+json').json(assertion.payloadJson);
+});
+
+// GET /badges/:assertionId/image - Dynamically baked badge image with embedded credential
+router.get('/badges/:assertionId/image', async (req: Request, res: Response) => {
+  const assertionId = req.params.assertionId as string;
+  const assertion = await prismaUnfiltered.assertion.findUnique({
+    where: { id: assertionId },
+    include: { badgeClass: true },
+  });
+
+  if (!assertion) {
+    res.status(404).send('Not found');
+    return;
+  }
+
+  const credentialJson = JSON.stringify(assertion.payloadJson);
+  const baked = await bakeCredentialImage(assertion.badgeClass.imageUrl, credentialJson);
+
+  if (!baked) {
+    res.redirect(302, assertion.badgeClass.imageUrl);
+    return;
+  }
+
+  const contentType = baked.extension === 'svg' ? 'image/svg+xml' : 'image/png';
+  res
+    .type(contentType)
+    .set('Content-Disposition', `inline; filename="badge-${assertion.id}.${baked.extension}"`)
+    .send(baked.buffer);
 });
 
 // GET /keys/:tenantId - Public key document

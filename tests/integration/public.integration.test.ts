@@ -3,9 +3,15 @@ import request from 'supertest';
 import { mockPrisma } from '../helpers/mockPrisma';
 import { makeTenant, makeBadgeClass, makeAssertion } from '../helpers/fixtures';
 
+const mockBakeCredentialImage = vi.fn();
+
 vi.mock('../../src/lib/prisma', () => ({
   prisma: mockPrisma,
   prismaUnfiltered: mockPrisma,
+}));
+
+vi.mock('../../src/services/baking.js', () => ({
+  bakeCredentialImage: (...args: any[]) => mockBakeCredentialImage(...args),
 }));
 
 import app from '../../src/app';
@@ -125,6 +131,41 @@ describe('GET /verify/:assertionId', () => {
     expect(res.text).toContain('Copy to Clipboard');
   });
 
+  it('returns JSON-LD when Accept: application/ld+json', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertionWithRelations);
+
+    const res = await request(app)
+      .get('/verify/72910be6-cbde-441c-b602-484884dbc28e')
+      .set('Accept', 'application/ld+json');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/application\/ld\+json/);
+    expect(res.body).toEqual(assertionWithRelations.payloadJson);
+  });
+
+  it('returns HTML when Accept: application/ld+json is absent', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertionWithRelations);
+
+    const res = await request(app)
+      .get('/verify/72910be6-cbde-441c-b602-484884dbc28e')
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/html/);
+    expect(res.text).toContain('Test Badge');
+  });
+
+  it('returns JSON-LD when Accept includes both html and ld+json', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertionWithRelations);
+
+    const res = await request(app)
+      .get('/verify/72910be6-cbde-441c-b602-484884dbc28e')
+      .set('Accept', 'text/html, application/ld+json; q=0.9');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/application\/ld\+json/);
+  });
+
   it('uses custom template when present', async () => {
     const customAssertion = {
       ...assertionWithRelations,
@@ -139,6 +180,16 @@ describe('GET /verify/:assertionId', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('CUSTOM: Test Badge');
+  });
+
+  it('uses baked image URL in verification page', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertionWithRelations);
+
+    const res = await request(app).get('/verify/72910be6-cbde-441c-b602-484884dbc28e');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('/badges/72910be6-cbde-441c-b602-484884dbc28e/image');
+    expect(res.text).not.toContain('https://example.com/badge.png');
   });
 });
 
@@ -216,5 +267,78 @@ describe('GET /keys/:tenantId', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Tenant not found');
+  });
+});
+
+describe('GET /badges/:assertionId/image', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    mockBakeCredentialImage.mockReset();
+  });
+
+  const MINIMAL_PNG = Buffer.from(
+    '89504e470d0a1a0a0000000d49484452' +
+      '00000001000000010802000090770d' +
+      'de0000000c4944415408d763f8cfc0' +
+      '00000003000100518d0e4e00000000' +
+      '49454e44ae426082',
+    'hex',
+  );
+
+  const assertionWithBadgeClass = {
+    ...makeAssertion(),
+    badgeClass: makeBadgeClass(),
+  };
+
+  it('returns baked PNG image for valid assertion', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertionWithBadgeClass);
+    mockBakeCredentialImage.mockResolvedValue({
+      buffer: MINIMAL_PNG,
+      extension: 'png',
+    });
+
+    const res = await request(app).get('/badges/72910be6-cbde-441c-b602-484884dbc28e/image');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/image\/png/);
+    expect(res.headers['content-disposition']).toContain(
+      'badge-72910be6-cbde-441c-b602-484884dbc28e.png',
+    );
+    expect(mockBakeCredentialImage).toHaveBeenCalledWith(
+      'https://example.com/badge.png',
+      JSON.stringify(assertionWithBadgeClass.payloadJson),
+    );
+  });
+
+  it('returns baked SVG image when badge is SVG', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertionWithBadgeClass);
+    mockBakeCredentialImage.mockResolvedValue({
+      buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+      extension: 'svg',
+    });
+
+    const res = await request(app).get('/badges/72910be6-cbde-441c-b602-484884dbc28e/image');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/image\/svg\+xml/);
+    expect(res.headers['content-disposition']).toContain('.svg');
+  });
+
+  it('redirects to original image when baking fails', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(assertionWithBadgeClass);
+    mockBakeCredentialImage.mockResolvedValue(null);
+
+    const res = await request(app).get('/badges/72910be6-cbde-441c-b602-484884dbc28e/image');
+
+    expect(res.status).toBe(302);
+    expect(res.headers['location']).toBe('https://example.com/badge.png');
+  });
+
+  it('returns 404 for missing assertion', async () => {
+    mockPrisma.assertion.findUnique.mockResolvedValue(null);
+
+    const res = await request(app).get('/badges/00000000-0000-0000-0000-000000000000/image');
+
+    expect(res.status).toBe(404);
   });
 });

@@ -53,7 +53,7 @@ export async function issueCredential(
     recipientSalt,
   } = params;
 
-  const verificationUrl = `https://${APP_DOMAIN}/verify/${assertionId}`;
+  const verificationUrl = `https://${APP_DOMAIN}/api/v1/assertions/${assertionId}`;
   const didKey = `did:key:${tenant.publicKeyMultibase}`;
   const keyId = `${didKey}#${tenant.publicKeyMultibase}`;
 
