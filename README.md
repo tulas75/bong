@@ -331,4 +331,4 @@ Over 100 tests covering crypto, schemas, credential signing, auth, all API route
 
 ## License
 
-ISC
+[AGPLv3 ](LICENSE)
