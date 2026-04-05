@@ -6,10 +6,10 @@ const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 
 /**
  * Build a PNG iTXt chunk per IMS Global Sec 5.3.1.1.
- * keyword: "openbadgescredential", compression: 0 (uncompressed)
+ * keyword: "openbadgecredential", compression: 0 (uncompressed)
  */
 function createItxtChunk(credentialJson: string): { name: string; data: Uint8Array } {
-  const keyword = Buffer.from('openbadgescredential\0', 'utf-8'); // keyword + null separator
+  const keyword = Buffer.from('openbadgecredential\0', 'utf-8'); // keyword + null separator
   const compressionFlag = Buffer.from([0]); // no compression
   const compressionMethod = Buffer.from([0]);
   const languageTag = Buffer.from('\0', 'utf-8'); // empty language tag + null

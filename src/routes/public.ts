@@ -168,8 +168,8 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   const { badgeClass } = assertion;
 
   const accept = req.headers.accept || '';
-  if (accept.includes('application/ld+json')) {
-    res.type('application/ld+json').json(assertion.payloadJson);
+  if (accept.includes('application/vc+ld+json') || accept.includes('application/ld+json')) {
+    res.type('application/vc+ld+json').json(assertion.payloadJson);
     return;
   }
 
@@ -244,7 +244,7 @@ router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response
     return;
   }
 
-  res.type('application/ld+json').json(assertion.payloadJson);
+  res.type('application/vc+ld+json').json(assertion.payloadJson);
 });
 
 // GET /badges/:assertionId/image - Dynamically baked badge image with embedded credential

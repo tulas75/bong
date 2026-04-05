@@ -167,7 +167,7 @@ Create a new badge class.
 }
 ```
 
-The `achievementType` field is optional (defaults to `"Badge"`). Valid values: `Achievement`, `Assessment`, `Award`, `Badge`, `Certificate`, `Certification`, `Course`, `Degree`, `Diploma`, `License`, `MicroCredential`.
+The `achievementType` field is optional (defaults to `"Badge"`). Valid values per the OB3 spec: `Achievement`, `ApprenticeshipCertificate`, `Assessment`, `AssociateDegree`, `Award`, `BachelorDegree`, `Badge`, `Certificate`, `CertificateOfCompletion`, `Certification`, `CoCurricular`, `CommunityService`, `Competency`, `Course`, `Degree`, `Diploma`, `DoctoralDegree`, `Fieldwork`, `GeneralEducationDevelopment`, `JourneymanCertificate`, `LearningProgram`, `License`, `Licensure`, `MasterCertificate`, `MasterDegree`, `MicroCredential`, `NationalityStatus`, `ProfessionalDoctorate`, `QualityAssuranceCredential`, `ResearchDoctorate`, `SecondarySchoolDiploma`.
 
 #### `POST /api/v1/assertions`
 
@@ -225,8 +225,8 @@ If the tenant has a webhook secret, the request must include an `X-Webhook-Signa
 | Endpoint                              | Description                                                                 |
 | ------------------------------------- | --------------------------------------------------------------------------- |
 | `GET /`                               | Landing page                                                                |
-| `GET /verify/:assertionId`            | HTML verification page (returns JSON-LD when `Accept: application/ld+json`) |
-| `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/ld+json`)                    |
+| `GET /verify/:assertionId`            | HTML verification page (returns JSON-LD when `Accept` includes `application/vc+ld+json` or `application/ld+json`) |
+| `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/vc+ld+json`)                 |
 | `GET /badges/:assertionId/image`      | Dynamically baked badge image (PNG/SVG with embedded credential)            |
 | `GET /keys/:tenantId`                 | Tenant's public key document (`application/ld+json`)                        |
 | `GET /status/list/:tenantId`          | W3C Bitstring Status List for revocation checking                           |
@@ -256,8 +256,8 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 - **Achievement types** — Badge classes support OB3 `achievementType` (Badge, Certificate, Course, Diploma, etc.) injected into the signed credential.
 - **Image baking** — Signed credentials are embedded into badge images (PNG iTXt chunk / SVG XML element) per IMS Global Sec 5.3, attached to notification emails and available via CLI.
 - **Baked image endpoint** — `GET /badges/:assertionId/image` dynamically bakes the credential into the badge image on demand, enabling validator PNG upload and baked image download from the verification page.
-- **Content negotiation** — `GET /verify/:assertionId` returns `application/ld+json` when the `Accept` header includes `application/ld+json`, enabling OB3 validators to resolve credential URLs.
-- **Credential `id` resolution** — The credential `id` field points to `/api/v1/assertions/:id`, which always returns `application/ld+json`, ensuring validators can dereference credential identifiers without content negotiation.
+- **Content negotiation** — `GET /verify/:assertionId` returns `application/vc+ld+json` when the `Accept` header includes `application/vc+ld+json` or `application/ld+json`, enabling OB3 validators to resolve credential URLs.
+- **Credential `id` resolution** — The credential `id` field points to `/api/v1/assertions/:id`, which always returns `application/vc+ld+json`, ensuring validators can dereference credential identifiers without content negotiation.
 - **Public key endpoint** — `/keys/:tenantId` serves `application/ld+json` for external signature verification.
 - **OB3 3.0.3 context** — Credentials use the `context-3.0.3.json` Open Badges context with `identifier` as array for strict validator compliance.
 

@@ -139,7 +139,7 @@ describe('GET /verify/:assertionId', () => {
       .set('Accept', 'application/ld+json');
 
     expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toMatch(/application\/ld\+json/);
+    expect(res.headers['content-type']).toMatch(/application\/vc\+ld\+json/);
     expect(res.body).toEqual(assertionWithRelations.payloadJson);
   });
 
@@ -163,7 +163,7 @@ describe('GET /verify/:assertionId', () => {
       .set('Accept', 'text/html, application/ld+json; q=0.9');
 
     expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toMatch(/application\/ld\+json/);
+    expect(res.headers['content-type']).toMatch(/application\/vc\+ld\+json/);
   });
 
   it('uses custom template when present', async () => {
@@ -205,7 +205,7 @@ describe('GET /api/v1/assertions/:assertionId (public)', () => {
     const res = await request(app).get('/api/v1/assertions/72910be6-cbde-441c-b602-484884dbc28e');
 
     expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toMatch(/application\/ld\+json/);
+    expect(res.headers['content-type']).toMatch(/application\/vc\+ld\+json/);
   });
 
   it('returns 404 for missing assertion', async () => {
