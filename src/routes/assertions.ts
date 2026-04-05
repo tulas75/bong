@@ -15,7 +15,13 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     return;
   }
 
-  const { badgeClassId, recipientEmail, recipientName, expiresAt: expiresAtStr } = parsed.data;
+  const {
+    badgeClassId,
+    recipientEmail,
+    recipientName,
+    expiresAt: expiresAtStr,
+    cryptosuite,
+  } = parsed.data;
 
   const badgeClass = await prisma.badgeClass.findFirst({
     where: { id: badgeClassId, tenantId: req.tenant!.id },
@@ -32,6 +38,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     result = await issueBadge({
       prisma: prismaUnfiltered,
+      cryptosuite,
       tenant: req.tenant!,
       badgeClass,
       recipientEmail,

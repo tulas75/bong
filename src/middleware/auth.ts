@@ -13,8 +13,11 @@ export interface AuthenticatedRequest extends Request {
     id: string;
     name: string;
     url: string;
+    imageUrl?: string | null;
     publicKeyMultibase: string;
     privateKeyMultibase: string;
+    p256PublicKeyMultibase?: string | null;
+    p256PrivateKeyMultibase?: string | null;
     webhookSecret?: string | null;
   };
 }
@@ -48,8 +51,13 @@ export async function requireApiKey(
     id: tenant.id,
     name: tenant.name,
     url: tenant.url,
+    imageUrl: tenant.imageUrl,
     publicKeyMultibase: tenant.publicKeyMultibase,
     privateKeyMultibase: decryptField(tenant.privateKeyMultibase, encryptionKey),
+    p256PublicKeyMultibase: tenant.p256PublicKeyMultibase || null,
+    p256PrivateKeyMultibase: tenant.p256PrivateKeyMultibase
+      ? decryptField(tenant.p256PrivateKeyMultibase, encryptionKey)
+      : null,
     webhookSecret: tenant.webhookSecret ? decryptField(tenant.webhookSecret, encryptionKey) : null,
   };
 

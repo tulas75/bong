@@ -1,6 +1,6 @@
 import { PrismaClient } from '../generated/prisma/client.js';
 import { v4 as uuidv4 } from 'uuid';
-import { issueCredential } from './credential.js';
+import { issueCredential, Cryptosuite } from './credential.js';
 import { sendBadgeIssuedEmail } from './email.js';
 import { bakeCredentialImage } from './baking.js';
 import { logger } from '../lib/logger.js';
@@ -9,12 +9,16 @@ const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
 interface IssueBadgeParams {
   prisma: PrismaClient;
+  cryptosuite?: Cryptosuite;
   tenant: {
     id: string;
     name: string;
     url: string;
+    imageUrl?: string | null;
     publicKeyMultibase: string;
     privateKeyMultibase: string;
+    p256PublicKeyMultibase?: string | null;
+    p256PrivateKeyMultibase?: string | null;
   };
   badgeClass: {
     id: string;
@@ -30,7 +34,8 @@ interface IssueBadgeParams {
 }
 
 export async function issueBadge(params: IssueBadgeParams) {
-  const { prisma, tenant, badgeClass, recipientEmail, recipientName, expiresAt } = params;
+  const { prisma, cryptosuite, tenant, badgeClass, recipientEmail, recipientName, expiresAt } =
+    params;
   const assertionId = uuidv4();
   const issuedOn = new Date();
 
@@ -46,6 +51,7 @@ export async function issueBadge(params: IssueBadgeParams) {
     // 2. Sign the credential (includes credentialStatus with the index)
     const { credential: signedCredential, salt } = await issueCredential({
       assertionId,
+      cryptosuite,
       tenant,
       badgeClass,
       recipientEmail,

@@ -12,11 +12,13 @@ model Tenant {
   name               String
   url                String
   imageUrl           String?
-  publicKeyMultibase  String
-  privateKeyMultibase String       // Encrypted with AES-256-GCM (ENCRYPTION_KEY)
-  apiKeyPrefix        String       @unique @db.VarChar(16) // First 8 chars of raw key, used for lookup
-  apiKey              String       // Stored as Argon2id hash
-  webhookSecret       String?      // Encrypted with AES-256-GCM, optional HMAC secret
+  publicKeyMultibase      String
+  privateKeyMultibase     String       // Encrypted with AES-256-GCM (ENCRYPTION_KEY)
+  p256PublicKeyMultibase  String?      // P-256 public key for ecdsa-sd-2023
+  p256PrivateKeyMultibase String?      // P-256 private key, encrypted with AES-256-GCM
+  apiKeyPrefix            String       @unique @db.VarChar(16) // First 8 chars of raw key, used for lookup
+  apiKey                  String       // Stored as Argon2id hash
+  webhookSecret           String?      // Encrypted with AES-256-GCM, optional HMAC secret
   createdAt           DateTime     @default(now())
   deletedAt           DateTime?
   nextStatusIndex     Int          @default(0)

@@ -3,6 +3,7 @@ import { prismaUnfiltered } from '../lib/prisma.js';
 import { escapeHtml, decryptField, getEncryptionKey } from '../lib/crypto.js';
 import { signStatusListCredential } from '../services/statusList.js';
 import { bakeCredentialImage } from '../services/baking.js';
+import { verifyCredentialProof } from '../services/verify.js';
 
 const router = Router();
 
@@ -181,6 +182,9 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   const isExpired = !!assertion.expiresAt && assertion.expiresAt < new Date();
   const isLegacy = !!(badgeClass.tenant as any).deletedAt || !!(badgeClass as any).deletedAt;
 
+  // Cryptographic proof verification
+  const proofResult = await verifyCredentialProof(assertion.payloadJson as object);
+
   let statusHtml: string;
   if (isRevoked) {
     const reason = assertion.revocationReason ? escapeHtml(assertion.revocationReason) : '';
@@ -188,6 +192,8 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     if (reason) statusHtml += `<p class="revocation-reason">Reason: ${reason}</p>`;
   } else if (isExpired) {
     statusHtml = `<p class="status-expired">Expired</p>`;
+  } else if (!proofResult.verified) {
+    statusHtml = `<p class="status-revoked">Signature Invalid</p><p class="revocation-reason">${escapeHtml(proofResult.error || 'Proof verification failed')}</p>`;
   } else {
     statusHtml = `<p class="status-verified">Verified Credential</p>`;
   }
@@ -273,6 +279,39 @@ router.get('/badges/:assertionId/image', async (req: Request, res: Response) => 
     .type(contentType)
     .set('Content-Disposition', `inline; filename="badge-${assertion.id}.${baked.extension}"`)
     .send(baked.buffer);
+});
+
+// GET /achievements/:badgeClassId - Achievement JSON-LD (resolves achievement.id URIs)
+router.get('/achievements/:badgeClassId', async (req: Request, res: Response) => {
+  const badgeClassId = req.params.badgeClassId as string;
+  const badgeClass = await prismaUnfiltered.badgeClass.findUnique({
+    where: { id: badgeClassId },
+    include: { tenant: true },
+  });
+
+  if (!badgeClass) {
+    res.status(404).json({ error: 'Achievement not found' });
+    return;
+  }
+
+  const achievement = {
+    '@context': 'https://purl.imsglobal.org/spec/ob/v3p0/context-3.0.3.json',
+    id: `https://${APP_DOMAIN}/achievements/${badgeClass.id}`,
+    type: 'Achievement',
+    achievementType: badgeClass.achievementType || 'Badge',
+    name: badgeClass.name,
+    description: badgeClass.description,
+    criteria: { narrative: badgeClass.criteria },
+    image: { id: badgeClass.imageUrl, type: 'Image' },
+    creator: {
+      id: `did:key:${badgeClass.tenant.publicKeyMultibase}`,
+      type: 'Profile',
+      name: badgeClass.tenant.name,
+      url: badgeClass.tenant.url,
+    },
+  };
+
+  res.type('application/ld+json').json(achievement);
 });
 
 // GET /keys/:tenantId - Public key document

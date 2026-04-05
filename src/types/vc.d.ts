@@ -43,6 +43,38 @@ declare module '@digitalbazaar/eddsa-rdfc-2022-cryptosuite' {
   export const cryptosuite: any;
 }
 
+declare module '@digitalbazaar/ecdsa-sd-2023-cryptosuite' {
+  export function createSignCryptosuite(): any;
+  export function createVerifyCryptosuite(): any;
+}
+
+declare module '@digitalbazaar/ecdsa-multikey' {
+  interface EcdsaMultikeyPair {
+    id: string;
+    type: string;
+    controller: string;
+    publicKeyMultibase: string;
+    secretKeyMultibase?: string;
+    signer(): any;
+    verifier(): any;
+    export(options: { publicKey?: boolean; secretKey?: boolean }): Promise<{
+      id?: string;
+      type: string;
+      publicKeyMultibase?: string;
+      secretKeyMultibase?: string;
+    }>;
+  }
+
+  export function generate(options: { curve: string }): Promise<EcdsaMultikeyPair>;
+  export function from(options: {
+    id?: string;
+    type?: string;
+    controller?: string;
+    publicKeyMultibase: string;
+    secretKeyMultibase?: string;
+  }): Promise<EcdsaMultikeyPair>;
+}
+
 declare module '@digitalbazaar/data-integrity' {
   export class DataIntegrityProof {
     constructor(options: { cryptosuite: any; signer?: any; verifier?: any });

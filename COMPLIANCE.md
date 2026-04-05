@@ -9,9 +9,9 @@
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Credential Data Model | Mostly Compliant | Minor serialization issues |
+| Credential Data Model | Compliant | All required fields, resolvable achievement IDs |
 | Cryptographic Proof (EdDSA) | Compliant | `eddsa-rdfc-2022` via Data Integrity |
-| Cryptographic Proof (ECDSA) | Not Implemented | `ecdsa-sd-2023` required for certification |
+| Cryptographic Proof (ECDSA) | Compliant | `ecdsa-sd-2023` with P-256 keys |
 | VC-JWT Proof | Not Implemented | Optional but limits interoperability |
 | Image Baking (PNG) | Compliant | Correct iTXt keyword `openbadgecredential` |
 | Image Baking (SVG) | Compliant | Correct namespace and element |
@@ -21,7 +21,7 @@
 | OAuth 2.0 | Not Implemented | Uses X-API-Key instead |
 | Service Discovery | Not Implemented | No `ServiceDescriptionDocument` |
 | Pagination | Not Implemented | No `X-Total-Count` / `Link` headers |
-| Verification Algorithm | Partial | DB-based status check, no cryptographic verify on the server |
+| Verification Algorithm | Compliant | Cryptographic proof verification via `vc.verifyCredential()` |
 | AchievementType Enum | Compliant | All 30 spec values supported |
 | Error Response Format | Non-Compliant | Uses `{ error }` instead of `Imsx_StatusInfo` |
 
@@ -61,12 +61,9 @@
 
 ### GAPS
 
-#### G1. `achievement.id` does not resolve (SHOULD)
+#### ~~G1. `achievement.id` does not resolve~~ FIXED
 
-**Spec**: Achievement `id` MUST be a URI. The spec recommends URIs that can be dereferenced.
-**Current**: `https://{domain}/badges/{badgeClassId}` returns 404 (no route for this path pattern with a badge class ID).
-**Impact**: Low. The URI is syntactically valid. Some validators may try to dereference it.
-**Fix**: Add a `GET /badges/:badgeClassId` route returning Achievement JSON-LD, or redirect to issuer profile.
+Achievement IDs now use `https://{domain}/achievements/{badgeClassId}` and resolve to an Achievement JSON-LD document via `GET /achievements/:badgeClassId`.
 
 #### ~~G2. Incomplete `AchievementType` enum~~ FIXED
 
@@ -103,12 +100,9 @@ All 30 OB3 spec values now supported in the Zod validation schema (`schemas.ts`)
 
 ### GAPS
 
-#### G5. Missing ECDSA (`ecdsa-sd-2023`) support (MUST for certification)
+#### ~~G5. Missing ECDSA (`ecdsa-sd-2023`) support~~ FIXED
 
-**Spec**: "To pass conformance tests, issuers MUST use Data Integrity EdDSA Cryptosuites v1.0 (`eddsa-rdfc-2022`)" **AND** "MUST support Data Integrity ECDSA Cryptosuites v1.0 (`ecdsa-sd-2023`)".
-**Current**: Only `eddsa-rdfc-2022` is implemented.
-**Impact**: **High**. Blocks 1EdTech certification. ECDSA support enables selective disclosure (important for privacy).
-**Fix**: Add `@digitalbazaar/ecdsa-sd-2023-cryptosuite` and P-256 key pair generation. Allow tenants to choose cryptosuite or issue with both.
+Both cryptosuites now supported. Tenants get P-256 keys (alongside Ed25519) on creation. Callers select via `cryptosuite` parameter on assertion creation (defaults to `eddsa-rdfc-2022`). Verification handles both suites automatically.
 
 #### G6. No VC-JWT proof support (SHOULD for interoperability)
 
@@ -273,12 +267,9 @@ The spec defines a specific REST API for credential exchange between systems:
 
 ### GAPS
 
-#### G16. No server-side cryptographic verification (SHOULD)
+#### ~~G16. No server-side cryptographic verification~~ FIXED
 
-**Spec**: Section 9.1 defines a full verification algorithm including proof verification (step 3).
-**Current**: The `/verify/:id` page only checks database fields (`revokedAt`, `expiresAt`) without verifying the cryptographic proof of the stored credential.
-**Impact**: Medium. The HTML verification page shows "Verified Credential" based on database state, not actual signature verification. External validators can still verify via the raw JSON-LD endpoint.
-**Fix**: Add `vc.verifyCredential()` call in the verify route (or implement the planned `/validate` endpoint from VALIDATOR.md).
+The `/verify/:assertionId` route now runs `vc.verifyCredential()` on the stored credential. If the proof is invalid, it displays "Signature Invalid" instead of "Verified Credential". Supports both `eddsa-rdfc-2022` and `ecdsa-sd-2023` proofs.
 
 #### G17. No recipient verification (RECOMMENDED)
 
@@ -311,11 +302,9 @@ The spec defines a specific REST API for credential exchange between systems:
 
 ### GAPS
 
-#### G19. No SSRF protection on image fetch (SHOULD)
+#### ~~G19. No SSRF protection on image fetch~~ FIXED
 
-**Current**: `bakeCredentialImage()` in `baking.ts` fetches arbitrary URLs from `badgeClass.imageUrl` without SSRF validation.
-**Impact**: Medium. An attacker with API access could set `imageUrl` to an internal network address.
-**Fix**: Implement the `safeFetch()` function described in VALIDATOR.md (block private IPs, enforce HTTPS, timeout).
+`bakeCredentialImage()` now uses `safeFetch()` (`src/lib/safeFetch.ts`) which enforces HTTPS-only, resolves DNS and blocks private IPs (RFC1918, loopback, link-local), limits redirects to 3 hops (validating each), and enforces 5s timeout + 1MB max body.
 
 ---
 
@@ -327,11 +316,11 @@ The spec defines a specific REST API for credential exchange between systems:
 |-------------|--------|-----|
 | Issue valid OpenBadgeCredentials | PASS | |
 | `eddsa-rdfc-2022` Data Integrity | PASS | |
-| `ecdsa-sd-2023` Data Integrity | FAIL | G5 |
+| `ecdsa-sd-2023` Data Integrity | PASS | |
 | Credential passes schema validation | PASS | |
 | Credential contains required fields | PASS | |
 
-**Verdict**: Nearly certifiable as Issuer. Blocked by missing ECDSA support (G5).
+**Verdict**: Certifiable as Issuer. Both required cryptosuites supported.
 
 ### Displayer Conformance
 
@@ -341,11 +330,11 @@ The spec defines a specific REST API for credential exchange between systems:
 | Display issuer name | PASS | |
 | Display issued date | PASS | |
 | Display expired/revoked status | PASS | |
-| Verify `eddsa-rdfc-2022` proofs | FAIL | G16 |
-| Verify `ecdsa-sd-2023` proofs | FAIL | G5 |
-| Viewer-initiated verification | PARTIAL | DB-only, no crypto verify |
+| Verify `eddsa-rdfc-2022` proofs | PASS | |
+| Verify `ecdsa-sd-2023` proofs | PASS | |
+| Viewer-initiated verification | PASS | Crypto verify on page load |
 
-**Verdict**: Not certifiable as Displayer. Missing cryptographic verification.
+**Verdict**: Certifiable as Displayer. Server-side proof verification implemented.
 
 ### Host Conformance
 
@@ -375,14 +364,16 @@ All Priority 1 items resolved:
 | G9 | Accept header negotiation | FIXED |
 | G2 | Complete AchievementType enum (30 values) | FIXED |
 
-### Priority 2 - Issuer Certification (fix in days)
+### ~~Priority 2 - Issuer Certification~~ DONE
 
-| ID | Gap | Effort | Impact |
-|----|-----|--------|--------|
-| G5 | ECDSA `ecdsa-sd-2023` support | 2-3 days | **Unblocks Issuer certification** |
-| G1 | Achievement ID resolution | 1 day | Better validator compat |
-| G16 | Server-side proof verification | 1-2 days | Honest "Verified" status |
-| G19 | SSRF protection on image fetch | 1 day | Security hardening |
+All Priority 2 items resolved:
+
+| ID | Gap | Status |
+|----|-----|--------|
+| G5 | ECDSA `ecdsa-sd-2023` with P-256 keys | FIXED |
+| G1 | Achievement ID resolution (`/achievements/:id`) | FIXED |
+| G16 | Server-side proof verification (`vc.verifyCredential()`) | FIXED |
+| G19 | SSRF protection (`safeFetch()`) | FIXED |
 
 ### Priority 3 - API Interoperability (fix in weeks)
 
@@ -514,8 +505,8 @@ All Priority 1 items resolved:
 | ~~`src/routes/public.ts:171`~~ | ~~G9~~ | ~~FIXED — accepts both media types~~ |
 | ~~`src/routes/public.ts:246`~~ | ~~G8~~ | ~~FIXED — `application/vc+ld+json`~~ |
 | ~~`src/lib/schemas.ts:9-21`~~ | ~~G2~~ | ~~FIXED — all 30 values~~ |
-| `src/services/credential.ts` | G5 | Add ECDSA cryptosuite option |
-| `src/services/baking.ts:74` | G19 | Replace raw `fetch()` with SSRF-safe fetch |
-| `src/routes/public.ts:156-233` | G16 | Add `vc.verifyCredential()` call |
+| ~~`src/services/credential.ts`~~ | ~~G5~~ | ~~FIXED — dual cryptosuite support~~ |
+| ~~`src/services/baking.ts:74`~~ | ~~G19~~ | ~~FIXED — uses `safeFetch()`~~ |
+| ~~`src/routes/public.ts`~~ | ~~G1, G16~~ | ~~FIXED — achievement route + proof verification~~ |
 | New: `src/routes/ob3api.ts` | G11-G15 | Standard OB3 API endpoints |
 | New: `src/middleware/oauth.ts` | G12 | OAuth 2.0 middleware |

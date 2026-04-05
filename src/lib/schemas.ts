@@ -49,6 +49,7 @@ export const createAssertionSchema = z.object({
   recipientEmail: z.string().email(),
   recipientName: z.string().min(1),
   expiresAt: z.string().datetime().optional(),
+  cryptosuite: z.enum(['eddsa-rdfc-2022', 'ecdsa-sd-2023']).default('eddsa-rdfc-2022'),
 });
 
 export const revokeAssertionSchema = z.object({

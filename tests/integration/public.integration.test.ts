@@ -4,6 +4,7 @@ import { mockPrisma } from '../helpers/mockPrisma';
 import { makeTenant, makeBadgeClass, makeAssertion } from '../helpers/fixtures';
 
 const mockBakeCredentialImage = vi.fn();
+const mockVerifyCredentialProof = vi.fn();
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: mockPrisma,
@@ -14,11 +15,16 @@ vi.mock('../../src/services/baking.js', () => ({
   bakeCredentialImage: (...args: any[]) => mockBakeCredentialImage(...args),
 }));
 
+vi.mock('../../src/services/verify.js', () => ({
+  verifyCredentialProof: (...args: any[]) => mockVerifyCredentialProof(...args),
+}));
+
 import app from '../../src/app';
 
 describe('GET /verify/:assertionId', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockVerifyCredentialProof.mockResolvedValue({ verified: true });
   });
 
   const assertionWithRelations = {

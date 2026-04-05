@@ -1,14 +1,19 @@
 import * as Ed25519Multikey from '@digitalbazaar/ed25519-multikey';
+import * as EcdsaMultikey from '@digitalbazaar/ecdsa-multikey';
 import { cryptosuite as eddsaRdfc2022CryptoSuite } from '@digitalbazaar/eddsa-rdfc-2022-cryptosuite';
+import { createSignCryptosuite as createEcdsaSd2023SignSuite } from '@digitalbazaar/ecdsa-sd-2023-cryptosuite';
 import { DataIntegrityProof } from '@digitalbazaar/data-integrity';
 import * as vc from '@digitalbazaar/vc';
 import { documentLoader } from '../lib/documentLoader.js';
 import { hashEmail } from '../lib/crypto.js';
 
+export type Cryptosuite = 'eddsa-rdfc-2022' | 'ecdsa-sd-2023';
+
 const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
 interface IssueCredentialParams {
   assertionId: string;
+  cryptosuite?: Cryptosuite;
   tenant: {
     id: string;
     name: string;
@@ -16,6 +21,8 @@ interface IssueCredentialParams {
     imageUrl?: string | null;
     publicKeyMultibase: string;
     privateKeyMultibase: string;
+    p256PublicKeyMultibase?: string | null;
+    p256PrivateKeyMultibase?: string | null;
   };
   badgeClass: {
     id: string;
@@ -43,6 +50,7 @@ export async function issueCredential(
 ): Promise<IssueCredentialResult> {
   const {
     assertionId,
+    cryptosuite: requestedSuite = 'eddsa-rdfc-2022',
     tenant,
     badgeClass,
     recipientEmail,
@@ -53,9 +61,18 @@ export async function issueCredential(
     recipientSalt,
   } = params;
 
+  // Select key material based on cryptosuite
+  const useEcdsa = requestedSuite === 'ecdsa-sd-2023';
+  const pubKey = useEcdsa ? tenant.p256PublicKeyMultibase : tenant.publicKeyMultibase;
+  const privKey = useEcdsa ? tenant.p256PrivateKeyMultibase : tenant.privateKeyMultibase;
+
+  if (useEcdsa && (!pubKey || !privKey)) {
+    throw new Error('Tenant has no P-256 keys. Regenerate keys or use eddsa-rdfc-2022.');
+  }
+
   const verificationUrl = `https://${APP_DOMAIN}/api/v1/assertions/${assertionId}`;
-  const didKey = `did:key:${tenant.publicKeyMultibase}`;
-  const keyId = `${didKey}#${tenant.publicKeyMultibase}`;
+  const didKey = `did:key:${pubKey}`;
+  const keyId = `${didKey}#${pubKey}`;
 
   const { identityHash, salt } = hashEmail(recipientEmail, recipientSalt);
 
@@ -108,7 +125,7 @@ export async function issueCredential(
         },
       ],
       achievement: {
-        id: `https://${APP_DOMAIN}/badges/${badgeClass.id}`,
+        id: `https://${APP_DOMAIN}/achievements/${badgeClass.id}`,
         type: 'Achievement',
         achievementType: badgeClass.achievementType || 'Badge',
         name: badgeClass.name,
@@ -125,18 +142,41 @@ export async function issueCredential(
     name: badgeClass.name,
   };
 
-  const keyPair = await Ed25519Multikey.from({
-    id: keyId,
-    type: 'Multikey',
-    controller: didKey,
-    publicKeyMultibase: tenant.publicKeyMultibase,
-    secretKeyMultibase: tenant.privateKeyMultibase,
-  });
+  let suite: DataIntegrityProof;
 
-  const suite = new DataIntegrityProof({
-    cryptosuite: eddsaRdfc2022CryptoSuite,
-    signer: keyPair.signer(),
-  });
+  if (useEcdsa) {
+    const keyPair = await EcdsaMultikey.from({
+      id: keyId,
+      type: 'Multikey',
+      controller: didKey,
+      publicKeyMultibase: pubKey!,
+      secretKeyMultibase: privKey!,
+    });
+    suite = new DataIntegrityProof({
+      cryptosuite: createEcdsaSd2023SignSuite({
+        // No mandatory pointers — all fields disclosed by default
+        mandatoryPointers: [
+          '/issuer',
+          '/validFrom',
+          '/credentialSubject/achievement',
+          '/credentialSubject/type',
+        ],
+      }),
+      signer: keyPair.signer(),
+    });
+  } else {
+    const keyPair = await Ed25519Multikey.from({
+      id: keyId,
+      type: 'Multikey',
+      controller: didKey,
+      publicKeyMultibase: pubKey!,
+      secretKeyMultibase: privKey!,
+    });
+    suite = new DataIntegrityProof({
+      cryptosuite: eddsaRdfc2022CryptoSuite,
+      signer: keyPair.signer(),
+    });
+  }
 
   const signedCredential = await vc.issue({
     credential,

@@ -1,6 +1,7 @@
 import extract from 'png-chunks-extract';
 import encode from 'png-chunks-encode';
 import { logger } from '../lib/logger.js';
+import { safeFetch } from '../lib/safeFetch.js';
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 
@@ -71,7 +72,7 @@ export async function bakeCredentialImage(
   credentialJson: string,
 ): Promise<{ buffer: Buffer; extension: string } | null> {
   try {
-    const response = await fetch(imageUrl);
+    const response = await safeFetch(imageUrl);
     if (!response.ok) {
       logger.warn({ imageUrl, status: response.status }, 'baking_image_fetch_failed');
       return null;

@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client.js';
 import * as Ed25519Multikey from '@digitalbazaar/ed25519-multikey';
+import * as EcdsaMultikey from '@digitalbazaar/ecdsa-multikey';
 import { randomUUID } from 'crypto';
 import { issueBadge } from './services/issuance.js';
 import {
@@ -44,10 +45,15 @@ tenant
   .action(async (opts) => {
     const encryptionKey = getEncryptionKey();
 
-    const keyPair = await Ed25519Multikey.generate();
-    const exported = await keyPair.export({ publicKey: true, secretKey: true });
-    const rawApiKey = `bong_${randomUUID().replace(/-/g, '')}`;
+    // Generate Ed25519 key pair (eddsa-rdfc-2022)
+    const edKeyPair = await Ed25519Multikey.generate();
+    const edExported = await edKeyPair.export({ publicKey: true, secretKey: true });
 
+    // Generate P-256 key pair (ecdsa-sd-2023)
+    const p256KeyPair = await EcdsaMultikey.generate({ curve: 'P-256' });
+    const p256Exported = await p256KeyPair.export({ publicKey: true, secretKey: true });
+
+    const rawApiKey = `bong_${randomUUID().replace(/-/g, '')}`;
     const apiKeyHash = await hashApiKey(rawApiKey);
 
     const t = await prisma.tenant.create({
@@ -55,9 +61,10 @@ tenant
         name: opts.name,
         url: opts.url,
         imageUrl: opts.image || null,
-        publicKeyMultibase: exported.publicKeyMultibase!,
-        // DB column is "privateKeyMultibase" but stores Multikey secretKeyMultibase
-        privateKeyMultibase: encryptField(exported.secretKeyMultibase!, encryptionKey),
+        publicKeyMultibase: edExported.publicKeyMultibase!,
+        privateKeyMultibase: encryptField(edExported.secretKeyMultibase!, encryptionKey),
+        p256PublicKeyMultibase: p256Exported.publicKeyMultibase!,
+        p256PrivateKeyMultibase: encryptField(p256Exported.secretKeyMultibase!, encryptionKey),
         apiKeyPrefix: extractApiKeyPrefix(rawApiKey),
         apiKey: apiKeyHash,
         webhookSecret: opts.webhookSecret ? encryptField(opts.webhookSecret, encryptionKey) : null,
@@ -70,7 +77,8 @@ tenant
     console.log(`  URL:            ${t.url}`);
     console.log(`  Image:          ${t.imageUrl || '(none)'}`);
     console.log(`  API Key:        ${rawApiKey}  (save this — it cannot be retrieved)`);
-    console.log(`  Public Key:     ${t.publicKeyMultibase}`);
+    console.log(`  Ed25519 Key:    ${t.publicKeyMultibase}`);
+    console.log(`  P-256 Key:      ${t.p256PublicKeyMultibase}`);
     console.log(`  Webhook secret: ${opts.webhookSecret ? 'set' : '(none)'}`);
   });
 

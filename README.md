@@ -178,11 +178,14 @@ Issue a badge to a recipient. Returns the signed Verifiable Credential.
   "badgeClassId": "<uuid>",
   "recipientEmail": "mario.rossi@example.com",
   "recipientName": "Mario Rossi",
-  "expiresAt": "2027-01-01T00:00:00Z"
+  "expiresAt": "2027-01-01T00:00:00Z",
+  "cryptosuite": "eddsa-rdfc-2022"
 }
 ```
 
-The `expiresAt` field is optional. When provided, the VC includes an `expirationDate` and the verification page shows the expiration status.
+The `expiresAt` field is optional. When provided, the VC includes a `validUntil` date and the verification page shows the expiration status.
+
+The `cryptosuite` field is optional (defaults to `"eddsa-rdfc-2022"`). Valid values: `eddsa-rdfc-2022` (Ed25519), `ecdsa-sd-2023` (P-256 with selective disclosure).
 
 #### `POST /api/v1/assertions/:id/revoke`
 
@@ -227,6 +230,7 @@ If the tenant has a webhook secret, the request must include an `X-Webhook-Signa
 | `GET /`                               | Landing page                                                                |
 | `GET /verify/:assertionId`            | HTML verification page (returns JSON-LD when `Accept` includes `application/vc+ld+json` or `application/ld+json`) |
 | `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/vc+ld+json`)                 |
+| `GET /achievements/:badgeClassId`     | Achievement JSON-LD document (resolves `achievement.id` URIs)               |
 | `GET /badges/:assertionId/image`      | Dynamically baked badge image (PNG/SVG with embedded credential)            |
 | `GET /keys/:tenantId`                 | Tenant's public key document (`application/ld+json`)                        |
 | `GET /status/list/:tenantId`          | W3C Bitstring Status List for revocation checking                           |
@@ -246,14 +250,18 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 - **CSP headers** — Content Security Policy on verification pages
 - **CORS** — configurable via `CORS_ORIGINS`
 - **Duplicate prevention** — partial unique index on `(badgeClassId, recipientEmail)` for active records, returns `409`
+- **SSRF protection** — image fetching uses `safeFetch()` which blocks private IPs, enforces HTTPS, limits redirects, and applies timeouts
 - **Audit logging** — structured pino logs for auth, issuance, revocation, and webhooks
 
 ## Open Badges v3 Compliance
 
+- **Dual cryptosuite support** — Credentials can be signed with `eddsa-rdfc-2022` (Ed25519, default) or `ecdsa-sd-2023` (P-256 with selective disclosure). Select via the `cryptosuite` parameter on badge issuance. Tenants automatically get both Ed25519 and P-256 key pairs on creation.
+- **Cryptographic proof verification** — The `/verify/:assertionId` page runs `vc.verifyCredential()` on every view, cryptographically verifying the signature before showing "Verified Credential". Supports both `eddsa-rdfc-2022` and `ecdsa-sd-2023` proofs.
 - **W3C Bitstring Status List** — Public `/status/list/:tenantId` endpoint for programmatic revocation checking. Bitstring is GZIP-compressed and Base64URL-encoded per spec (16KB minimum). The status list credential is **signed with a Data Integrity Proof** (eddsa-rdfc-2022), enabling verifiers to authenticate its origin and detect tampering.
 - **Atomic status indexing** — Each assertion gets a unique `statusListIndex` assigned via atomic database transaction, preventing race conditions on concurrent issuance.
 - **`credentialStatus`** — Embedded in the signed VC payload as `BitstringStatusListEntry`, pointing to the tenant's status list endpoint.
-- **Achievement types** — Badge classes support OB3 `achievementType` (Badge, Certificate, Course, Diploma, etc.) injected into the signed credential.
+- **Achievement types** — Badge classes support all 30 OB3 `achievementType` values injected into the signed credential.
+- **Achievement ID resolution** — `GET /achievements/:badgeClassId` returns an Achievement JSON-LD document, enabling validators to dereference `achievement.id` URIs.
 - **Image baking** — Signed credentials are embedded into badge images (PNG iTXt chunk / SVG XML element) per IMS Global Sec 5.3, attached to notification emails and available via CLI.
 - **Baked image endpoint** — `GET /badges/:assertionId/image` dynamically bakes the credential into the badge image on demand, enabling validator PNG upload and baked image download from the verification page.
 - **Content negotiation** — `GET /verify/:assertionId` returns `application/vc+ld+json` when the `Accept` header includes `application/vc+ld+json` or `application/ld+json`, enabling OB3 validators to resolve credential URLs.
