@@ -1,189 +1,21 @@
 # TODO
 
+## OB3 Public Validator
 
+**Priority:** High | **Full plan:** [`VALIDATOR.md`](./VALIDATOR.md)
 
-## Politica "No-Delete" (Integrità Relazionale e Database)
+Public-facing OB3 credential validator at `/validate` — verifies any OB3 credential (not just BONG-issued). Server-rendered UI + JSON API. Key concerns: rate limiting, proof verification via `vc.verifyCredential()`. SSRF-safe fetch (`src/lib/safeFetch.ts`) and proof verification service (`src/services/verify.ts`) are already built. See `VALIDATOR.md` for the complete phased implementation plan.
 
-**Priority:** High
-**Related:** `prisma/schema.prisma`, `src/cli.ts`
+## OB3 REST API + OAuth2 (Priority 3)
 
-È vitale attuare una rigorosa politica di conservazione dati. I record rilasciati (Assertion) nel mondo delle Verifiable Credentials vanno strettamente *Revocati* e mai distrutti. L'eliminazione infrastrutturale di Tenant e BadgeClass avverrà unicamente tramite *Soft Delete*.
+**Priority:** Medium | **Full plan:** [`PRIORITY3.md`](./PRIORITY3.md)
 
-- [x] Aggiungere il campo `deletedAt` (`DateTime?`) in tutte le tabelle Prisma principali (`Tenant`, `BadgeClass`, `Assertion`).
-- [x] Aggiungere un indice sul campo `deletedAt` (`@@index([deletedAt])`) in Prisma per ottimizzare le future iterazioni di ricerca.
-- [x] Rimuovere il vincolo `@@unique([badgeClassId, recipientEmail])` nativo di Prisma e sostituirlo con una Migrazione raw SQL contenente un **Partial Unique Index** (`WHERE "deletedAt" IS NULL`).
-- [x] **Logica "Cascading Soft Delete"**: la cancellazione logica (soft) di un Tenant propaga il soft delete a tutte le sue `BadgeClass`, **MA** lascia espressamente inalterate le `Assertion` già emesse, così i vecchi utenti manterranno certificati accessibili e validabili (le referenze relazionali nel DB rimarranno intatte).
-- [x] Implementare un Prisma Client Extension/Middleware che converta in background le chiamate di `DELETE` in `UPDATE` (`deletedAt`) ed escluda selettivamente i record eliminati dalle normali query di lettura. **Nota Tecnica**: l'estensione dovrà fornire una configurazione di bypass o metodo raw, poiché la rotta pubblica `/verify/:id` dovrà continuare a completare le interrogazioni (FIND) estraendo le Assertion collegate a Tenant e BadgeClass soft-deleteati, prevenendo errori NotFound (404).
-- [x] Aggiornare la UI della pagina di verifica (`src/routes/public.ts`): se un'Assertion valida viaggia su un Tenant o BadgeClass cancellati (`deletedAt !== null`), il template esporrà logicamente un banner "Legacy Credential / Issuer Retired" (Avviso: L'emittente originale non è più attivo, ma la validità e la firma crittografica della credenziale storica restano pienamente confermate). OpenBadges v3 sostiene by-design le credenziali decentralizzate e orfane.
-- [x] Adeguare preventivamente la CLI: per Tenant e BadgeClass il comando `delete` stamperà "Record marked as deleted (Soft)". Anche per le `Assertion` il comando `delete` applicherà il Soft Delete (per nasconderle dall'Admin UI/API), specificando però che per la svalutazione ufficiale del certificato si deve usare "revoke".
-- [x] **Compliance GDPR (Scrambling & Anonymization)**: Il comando (es. `bong assertion anonymize <id>`) effettuerà un obscuring irreparabile del record al posto del DBMS DELETE:
-  - Campi anagrafici (`recipientEmail`, `recipientName`) sovrascritti con valori placeholder (es. `deleted@oblivion.local`).
-  - `payloadJson` sovrascritto/azzerato per epurare tracce PII (es. `{"status": "anonymized"}`).
-  - Hashing string: poichè `sha256$` della mail può essere craccato a dizionario, anche i campi hash vanno triturati con sequenze fittizie.
-  - Questa operazione di *Scrambling* implicherà di default lo scatter del flag `deletedAt = now()`: l'Assertion diventa un record orfano occupando spazio solo a fini statistici ed impedendo conflitti infrastrutturali.
-- [x] Creare un Trigger PostgreSQL con migrazione raw per bloccare fisicamente le istruzioni SQL standard di `DELETE` a livello di driver/database lanciando un EXCEPTION, ottenendo una blindatura completa.
-
-## Task: Full Compliance Open Badge v3 (W3C StatusList2021 & Linked Data)
-**Priority:** High
-**Related:** `prisma/schema.prisma`, `src/routes/public.ts`, `src/lib/issuance.ts`
-
-### 1. Database & Concorrenza (Atomic Indexing)
-- [x] **Schema Update**: Aggiungere `nextStatusIndex Int @default(0)` al modello `Tenant` e `statusListIndex Int?` al modello `Assertion`.
-- [x] **Indice di Unicità**: Implementare un indice unico composto `@@unique([tenantId, statusListIndex])` per garantire che non esistano mai due badge con la stessa posizione nella lista dello stesso Tenant. (Attenzione: andrà implementato nel DB / Prisma a livello di Tenant, ma Assertion potrebbe non avere tenantId diretto, va verificata la relazione).
-- [x] **Data Migration**: Creare uno script/migrazione per assegnare retroattivamente un `statusListIndex` sequenziale (0, 1, 2...) a tutte le Assertion già esistenti nel database.
-- [x] **Atomic Issuance**: Modificare la logica di emissione badge utilizzando una Prisma Transaction. Il contatore `nextStatusIndex` del Tenant deve essere incrementato atomicamente (`{ increment: 1 }`) e il valore restituito deve essere usato come `statusListIndex` per la nuova Assertion. *Nota: Questo previene race conditions in caso di emissioni simultanee.*
-
-### 2. Implementazione W3C StatusList2021
-- [x] **Endpoint `/status/list`**: Creare una rotta pubblica che generi il documento di stato per ogni Tenant (`/status/list/:tenantId`).
-- [x] **Encoding Logic**:
-  - Generare una bitstring dove il bit all'indice X è 1 se l'Assertion con `statusListIndex = X` ha `revokedAt !== null`, altrimenti 0.
-  - Comprimere la bitstring utilizzando GZIP (libreria `zlib`).
-  - Codificare il risultato in Base64URL (senza padding), come richiesto dal Technical Report W3C.
-- [x] **JSON-LD Structure**: La risposta deve includere:
-  - `@context`: `https://www.w3.org/ns/credentials/status/v1`
-  - `type`: `BitstringStatusListCredential` / `BitstringStatusList` / `BitstringStatusListEntry` (updated to W3C Bitstring Status List spec).
-  - L'array codificato `encodedList`.
-
-### 3. Linked Data & Public Keys
-- [x] **Mime-Type Enforcement**: Aggiornare la rotta `/keys/:tenantId` per forzare l'header `Content-Type: application/ld+json`. Sostituire `res.json()` con un invio esplicito del body stringificato per garantire la compatibilità con i validatori crittografici esterni.
-- [x] **Integration**: Assicurarsi che nel JSON del badge (`Assertion payload`), il campo `credentialStatus` punti correttamente all'URL dell'endpoint `/status/list/:tenantId` appena creato e includa il relativo `statusListIndex`.
-
-### 4. Achievement Type (IMS Global Specification)
-- [x] **Schema Update**: Aggiungere un campo `achievementType String @default("Badge")` al modello `BadgeClass` in Prisma.
-- [x] **Data Model Validation**: Vincolare la stringa ad accettare idealmente l'enumerazione dettata dallo standard OBv3 3.0 (es. `Achievement`, `Assessment`, `Award`, `Badge`, `Certificate`, `Certification`, `Course`, `Degree`, `Diploma`, `License`, `MicroCredential`).
-- [x] **JSON Integration**: Durante la composizione del Badge, iniettare esplicitamente la proprietà `achievementType` (leggendola dal DB) come stringa valoriale dentro l'oggetto radice dell'`Achievement` (annidato in `credentialSubject.achievement`). Garantire il fallback a `"Badge"` per compatibilità pregressa.
-
-### 5. "Baking" (JSON-LD Image Embedding) - IMS Global Sec 5.3
-- [x] **CLI Baking Command**: Implementare il comando `bong assertion bake <id>` per consentire l'esportazione "offline" della Verifiable Credential.
-- [x] **Image Processing (PNG/SVG)**: Il comando dovrà recuperare l'immagine nativa della `BadgeClass` collegata (se PNG o SVG). Per i file PNG, assicurarsi rigorosamente che il chunk testuale sia non compresso (`compression: 0`) e la keyword sia `openbadgescredential` come da Spec 5.3.1.1. Per i file SVG, usare un parser XML per aggiungere l'attributo `xmlns:openbadges` e iniettare nel DOM il tag `<openbadges:credential>` col payload JSON-LD in un blocco `CDATA` (Spec 5.3.2.1).
-- [x] **iTXt / Metadata Injection**: Usare una libreria adatta (es. buffer manipulation o pacchetti come `pngitxt`) per incapsulare in modo compliant l'intera stringa del payload JSON-LD dell'Assertion all'interno del chunk testuale `iTXt` dell'immagine, producendo un file auto-contenuto e compatibile con i digital wallet offline.
-- [x] **Email Integration**: Baked image auto-attached to badge notification email. CLI `bong assertion bake <id>` available as fallback for re-generation.
-
-### 6. Verifiable Credentials v2 Data Model (Breaking Change OBv3)
-- [x] **Context Update**: Aggiornato l'array `@context` per utilizzare `context-3.0.3.json`. Nota: il context VC v2 (`credentials/v2`) causa conflitti `@protected` con la libreria `@digitalcredentials/vc` (Ed25519Signature2020). Si mantiene VC v1 come base finché non si migra a un signing suite nativo VC v2.
-- [ ] **Credential Schema**: Bloccato — il tipo `1EdTechJsonSchemaValidator2019` non è definito nei context JSON-LD cachati. Richiede upgrade del signing suite a VC v2-native (es. Data Integrity / ecdsa-sd-2023) per supportare il safe mode.
-- [x] **Identifier Compliance**: Assicurarsi che l'oggetto privacy-preserving `identifier` (di tipo `IdentityObject` contenente l'hash della mail) dentro la radice di `credentialSubject` sia eventualmente formato come array o accompagnato da un campo `id` generico per soddisfare gli standard sintattici e i validatori di Verifiable Credentials v2.
-
-## Implementare il Salt per l'hashing di `identityHash`
-
-**Priority:** High
-**Related:** OpenBadges v3 spec, `src/lib/crypto.ts` (`hashEmail`), `src/services/credential.ts`
-
-L'attuale `identityHash` nei badge usa un SHA-256 non salato (`sha256$<hash>`). Dato che le email hanno bassa entropia, è necessario implementare un "Salt" univoco aggiunto all'email prima dell'hashing, per impedire che qualcuno possa risalire all'indirizzo email dell'utente tramite attacchi a dizionario (rainbow tables).
-
-**Current behavior:**
-
-```
-sha256$63c663e3980e655afefd216a41332c4c01c5a0f8571cb6d0ce4b215f40c2755c
-```
-
-**Action items:**
-
-- [ ] Check if OpenBadges v3 spec supports a salted identity hash format
-- [ ] If salting is supported, add a per-credential random salt and include it in the `IdentityObject` (the spec has a `salt` field)
-- [ ] Update `hashEmail` in `src/lib/crypto.ts` to accept an optional salt
-- [ ] Update `src/services/credential.ts` to generate and pass the salt
-
-# JSON-LD viewer modal for "View raw Verifiable Credential"#
-
-**Priority:** Medium
-**Related:** `src/routes/public.ts` (verification page template)
-
-Currently the "View raw Verifiable Credential (JSON-LD)" link navigates to a raw JSON endpoint. Instead, display the JSON in a styled modal overlay on the verification page — similar to Badgr's "Badge Award JSON" dialog:
-
-- [x] Add a modal/overlay triggered by the "View raw" link (no page navigation)
-- [x] Show the JSON pretty-printed with syntax highlighting in a dark code block
-- [x] Add a "Copy to Clipboard" button
-- [x] Add a close (X) button
-- [x] Keep the modal CSP-compliant (inline styles only, no external JS)
-
-## Send email notification when a badge is issued
-
-**Priority:** High
-**Related:** `src/services/credential.ts`, `src/routes/assertions.ts`, `src/routes/webhooks.ts`, `src/cli.ts`
-
-When a badge is issued (via API, webhook, or CLI), send an email to the recipient with:
-
-- [x] Choose an email provider/library (Nodemailer)
-- [x] Add SMTP/email configuration to `.env` (host, port, credentials, from address)
-- [x] Create an email template with badge name, issuer, and verification link
-- [x] Send email after successful assertion creation in all issuance paths (API, webhook, CLI)
-- [x] Handle failures gracefully (log error, don't block badge issuance if email fails)
-
-## Migrate tsconfig to ES2022 modules
-
-**Priority:** Low
-**Related:** `tsconfig.json`, `package.json`
-
-Currently the project uses `"module": "commonjs"` and `"target": "ES2020"`. Migrating to ES2022 (`"module": "Node16"` or `"NodeNext"`) would enable native ESM, top-level await, and `import.meta.url`.
-
-- [ ] Verify `@digitalcredentials/*` packages support ESM
-- [ ] Update `tsconfig.json` target/module to ES2022
-- [ ] Add `"type": "module"` to `package.json`
-- [ ] Fix any CommonJS-only imports (`require`, `__dirname`, etc.)
-- [ ] Test all CLI, API, and webhook flows after migration
-
-## Add test suite
-
-**Priority:** High
-**Related:** `tests/`, `package.json`
-
-The project currently has no automated tests. Add a test framework and comprehensive test coverage.
-
-- [x] Set up test framework (Vitest + Supertest)
-- [x] Add unit tests for `src/lib/crypto.ts` (argon2 hashing, encryption, email hashing, prefix extraction)
-- [x] Add unit tests for `src/lib/schemas.ts` (Zod validation)
-- [x] Add integration tests for API routes (assertions, badges, webhooks)
-- [x] Add integration tests for auth middleware (valid key, invalid key, missing key)
-- [x] Add integration tests for public routes (verify page, JSON-LD endpoint, keys endpoint)
-- [ ] Add CLI tests (tenant create/list/delete, badge create/issue, assertion list)
-- [x] Add webhook signature verification tests (valid, invalid, missing)
-- [x] Add test script to `package.json`
-- [ ] Add CI pipeline (GitHub Actions) to run tests on push/PR
-
-## Add linting and code formatting
-
-**Priority:** Medium
-**Related:** `package.json`
-
-- [x] Set up ESLint with TypeScript plugin
-- [x] Set up Prettier for consistent formatting
-- [x] Add `lint` and `format` scripts to `package.json`
-- [x] Add pre-commit hook (e.g. via Husky + lint-staged)
-- [x] Fix any existing lint issues
-- [x] Add lint check to CI pipeline
-
-## Badge revocation
-
-**Priority:** High
-**Related:** `src/routes/assertions.ts`, `prisma/schema.prisma`
-
-Ability to revoke issued badges (e.g. if issued by mistake or recipient no longer qualifies). Essential for any credentialing system.
-
-- [x] Add `revokedAt` and `revocationReason` fields to Assertion model
-- [x] Add `POST /api/v1/assertions/:id/revoke` endpoint
-- [x] Add `bong assertion revoke <assertionId> --reason` CLI command
-- [x] Show revocation status on the verification page
-- [x] Include revocation status in JSON-LD credential response
-
-## Badge expiration
-
-**Priority:** Medium
-**Related:** `prisma/schema.prisma`, `src/services/credential.ts`
-
-Support time-limited badges that expire after a set duration.
-
-- [x] Add optional `expiresAt` field to Assertion model
-- [x] Add optional `--expires <date>` flag to badge issuance (ISO 8601 date)
-- [x] Include `expirationDate` in the Verifiable Credential
-- [x] Show expiration status on verification page (valid / expired)
+Standard OB3 interoperability API (`/ims/ob/v3p0/`) with OAuth2 via `node-oidc-provider`. Adds Host/Service Provider role for machine-to-machine credential exchange. See `PRIORITY3.md` for the complete implementation plan.
 
 ## Bulk badge issuance via CSV
 
 **Priority:** Medium
 **Related:** `src/cli.ts`, `src/routes/assertions.ts`
-
-Issue badges to multiple recipients at once from a CSV file.
 
 - [ ] Add `bong badge bulk-issue <badgeId> --csv <file>` CLI command (columns: email, name)
 - [ ] Add `POST /api/v1/badges/:id/bulk-issue` API endpoint
@@ -201,26 +33,15 @@ La protezione Nginx filtra i DDoS, ma l'app deve difendersi in autonomia dai ten
 - [ ] Configurare un rate limit specifico e stringente sulla rotta pubblica `GET /verify/:assertionId`.
 - [ ] Mantenere rate limiting anche per le rotte autenticate e generali.
 
-## Log Rotation (Es. Winston)
+## Log Rotation
 
 **Priority:** High
-**Related:** `package.json`, `src/utils/logger.ts`
+**Related:** `package.json`, `src/lib/logger.ts`
 
-L'app necessita di un sistema per non saturare lo spazio disco della VM (Elestio) coi log testuali dei servizi in esecuzione nel tempo.
+L'app necessita di un sistema per non saturare lo spazio disco della VM (Elestio) coi log testuali dei servizi in esecuzione nel tempo. L'app utilizza Pino per il logging strutturato.
 
-- [ ] Configurare una libreria di logging avanzata (es. `winston` + `winston-daily-rotate-file`).
+- [ ] Configurare rotazione dei log (es. `pino-roll` o logrotate esterno).
 - [ ] Prevedere rotazione dei file di log per data/dimensioni con eventuale auto-cancellazione o storage archiviato dei log troppo vecchi.
-
-## QR code on verification page
-
-**Priority:** Low
-**Related:** `src/routes/public.ts`
-
-Add a QR code to the badge verification page for easy sharing/scanning.
-
-- [ ] Generate QR code server-side (e.g. `qrcode` package) encoding the verify URL
-- [ ] Display on verification page
-- [ ] Make downloadable for recipients
 
 ## API pagination
 
@@ -232,6 +53,38 @@ List endpoints currently return all results. Add cursor or offset-based paginati
 - [ ] Add `?limit=` and `?offset=` query params to list endpoints
 - [ ] Return pagination metadata (total, hasMore)
 - [ ] Apply to CLI list commands as well
+
+## Test suite (remaining items)
+
+**Priority:** Medium
+**Related:** `tests/`, `package.json`
+
+132 tests already covering crypto, schemas, credential signing, auth, all API routes, webhooks, revocation, and expiration.
+
+- [ ] Add CLI tests (tenant create/list/delete, badge create/issue, assertion list)
+- [ ] Add CI pipeline (GitHub Actions) to run tests on push/PR
+
+## Migrate tsconfig to ES2022 modules
+
+**Priority:** Low
+**Related:** `tsconfig.json`, `package.json`
+
+Currently the project uses `"module": "commonjs"` and `"target": "ES2020"`. Migrating to ES2022 (`"module": "Node16"` or `"NodeNext"`) would enable native ESM, top-level await, and `import.meta.url`.
+
+- [ ] Verify `@digitalbazaar/*` packages support ESM
+- [ ] Update `tsconfig.json` target/module to ES2022
+- [ ] Add `"type": "module"` to `package.json`
+- [ ] Fix any CommonJS-only imports (`require`, `__dirname`, etc.)
+- [ ] Test all CLI, API, and webhook flows after migration
+
+## QR code on verification page
+
+**Priority:** Low
+**Related:** `src/routes/public.ts`
+
+- [ ] Generate QR code server-side (e.g. `qrcode` package) encoding the verify URL
+- [ ] Display on verification page
+- [ ] Make downloadable for recipients
 
 ## OpenAPI / Swagger documentation
 
@@ -246,8 +99,6 @@ List endpoints currently return all results. Add cursor or offset-based paginati
 
 **Priority:** Low
 **Related:** `src/routes/public.ts`
-
-Generate a downloadable PDF certificate from the verification page.
 
 - [ ] Add `/verify/:assertionId/pdf` endpoint
 - [ ] Use a PDF library (e.g. `puppeteer`, `pdf-lib`, or `pdfmake`)
@@ -269,3 +120,56 @@ Web-based admin dashboard to manage tenants, badges, and assertions without the 
 - [ ] Bulk issuance UI (CSV upload)
 - [ ] Dashboard with stats (total tenants, badges, assertions, recent activity)
 - [ ] Protect admin routes separately from API routes
+
+---
+
+# Completed
+
+## No-Delete Policy (Soft Delete + GDPR Anonymization)
+
+Soft delete fields, cascading logic, Prisma extension, legacy credential banner, GDPR anonymization (`bong assertion anonymize`), PostgreSQL trigger blocking physical DELETEs.
+
+## Full OB3 Compliance (W3C StatusList2021 & Linked Data)
+
+W3C Bitstring Status List (signed, gzipped, base64url), atomic status indexing, all 30 achievement types, image baking (PNG iTXt + SVG XML), VC v2 Data Model (`validFrom`/`validUntil`), `1EdTechJsonSchemaValidator2019` credential schema, privacy-preserving identifier array.
+
+## Salted Identity Hash
+
+`hashEmail()` generates random 16-byte salt per credential. Salt included in `IdentityObject` and stored in `recipientSalt`.
+
+## JSON-LD Viewer Modal
+
+Styled modal overlay on verification page with pretty-printed JSON, copy-to-clipboard, CSP-compliant.
+
+## Email Notifications
+
+Nodemailer SMTP integration. Badge issuance emails with baked image attachment. Non-blocking (failures logged, never block issuance).
+
+## Test Suite (core)
+
+Vitest + Supertest. 132 tests covering crypto, schemas, credential signing, auth, API routes, webhooks, revocation, expiration.
+
+## Linting & Formatting
+
+ESLint + Prettier + Husky + lint-staged. Pre-commit hooks enforced.
+
+## Badge Revocation
+
+`revokedAt`/`revocationReason` fields, `POST /api/v1/assertions/:id/revoke`, CLI command, verification page status, W3C Bitstring Status List integration.
+
+## Badge Expiration
+
+Optional `expiresAt`, `validUntil` in VC v2 credential, verification page shows expired status.
+
+## OB3 Compliance Priorities 1 & 2 (from COMPLIANCE.md)
+
+- PNG baking keyword corrected (`openbadgecredential`)
+- Content-Type `application/vc+ld+json` for credential responses
+- Accept header negotiation (`application/vc+ld+json` + `application/ld+json`)
+- All 30 AchievementType enum values
+- ECDSA `ecdsa-sd-2023` cryptosuite with P-256 keys
+- Achievement ID resolution (`GET /achievements/:badgeClassId`)
+- Server-side cryptographic proof verification (`vc.verifyCredential()`)
+- SSRF protection (`safeFetch()`)
+- DID v1 context cached for proof verification
+- `@context` key ordering fix for validator compatibility
