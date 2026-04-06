@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import QRCode from 'qrcode';
 import { prismaUnfiltered } from '../lib/prisma.js';
 import { escapeHtml, decryptField, getEncryptionKey } from '../lib/crypto.js';
 import { signStatusListCredential } from '../services/statusList.js';
@@ -66,7 +67,11 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
       <dt>Description</dt>
       <dd>{{badgeDescription}}</dd>
     </dl>
-    <p style="margin-top: 24px; font-size: 0.85em; color: #999;">
+    <div style="margin-top: 24px;">
+      <img src="{{qrCodeDataUri}}" alt="QR Code" style="width:140px;height:140px;" />
+      <p style="font-size: 0.75em; color: #aaa; margin-top: 4px;">Scan to verify</p>
+    </div>
+    <p style="margin-top: 12px; font-size: 0.85em; color: #999;">
       <a href="#" id="view-json-link">View raw Verifiable Credential (JSON-LD)</a>
     </p>
   </div>
@@ -136,7 +141,13 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
   });
 }
 
-const RAW_HTML_KEYS = new Set(['statusHtml', 'expirationHtml', 'legacyHtml', 'credentialJson']);
+const RAW_HTML_KEYS = new Set([
+  'statusHtml',
+  'expirationHtml',
+  'legacyHtml',
+  'credentialJson',
+  'qrCodeDataUri',
+]);
 
 function renderRawHtml(template: string, vars: Record<string, string>): string {
   // First pass: render raw HTML/JSON blocks (not escaped)
@@ -213,6 +224,12 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     expirationHtml = `<dt>Expires</dt><dd>${escapeHtml(assertion.expiresAt.toISOString().split('T')[0])}</dd>`;
   }
 
+  const qrCodeDataUri = await QRCode.toDataURL(verifyUrl, {
+    width: 280,
+    margin: 1,
+    color: { dark: '#000000', light: '#ffffff' },
+  });
+
   const templateVars: Record<string, string> = {
     badgeName: badgeClass.name,
     badgeDescription: badgeClass.description,
@@ -228,6 +245,7 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     statusHtml,
     legacyHtml,
     expirationHtml,
+    qrCodeDataUri,
     credentialJson: JSON.stringify(assertion.payloadJson).replace(/</g, '\\u003c'),
   };
 

@@ -77,14 +77,9 @@ Currently the project uses `"module": "commonjs"` and `"target": "ES2020"`. Migr
 - [ ] Fix any CommonJS-only imports (`require`, `__dirname`, etc.)
 - [ ] Test all CLI, API, and webhook flows after migration
 
-## QR code on verification page
+## ~~QR code on verification page~~ DONE
 
-**Priority:** Low
-**Related:** `src/routes/public.ts`
-
-- [ ] Generate QR code server-side (e.g. `qrcode` package) encoding the verify URL
-- [ ] Display on verification page
-- [ ] Make downloadable for recipients
+Moved to Completed section.
 
 ## OpenAPI / Swagger documentation
 
@@ -173,3 +168,7 @@ Optional `expiresAt`, `validUntil` in VC v2 credential, verification page shows 
 - SSRF protection (`safeFetch()`)
 - DID v1 context cached for proof verification
 - `@context` key ordering fix for validator compatibility
+
+## QR Code on Verification Page
+
+Server-side QR code generation (`qrcode` package) as PNG data URI. Displayed on the verification page with "Scan to verify" label. CSP-compliant (uses `data:` img-src).
