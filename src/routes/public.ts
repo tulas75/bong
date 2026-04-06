@@ -170,7 +170,9 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
 
   const accept = req.headers.accept || '';
   if (accept.includes('application/vc+ld+json') || accept.includes('application/ld+json')) {
-    res.type('application/vc+ld+json').json(assertion.payloadJson);
+    const payload = assertion.payloadJson as Record<string, unknown>;
+    const ordered = { '@context': payload['@context'], ...payload };
+    res.type('application/vc+ld+json').json(ordered);
     return;
   }
 
@@ -253,7 +255,11 @@ router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response
     return;
   }
 
-  res.type('application/vc+ld+json').json(assertion.payloadJson);
+  // PostgreSQL jsonb reorders keys by length, putting @context in the middle.
+  // Re-serialize with @context first for compatibility with naive validators.
+  const payload = assertion.payloadJson as Record<string, unknown>;
+  const ordered = { '@context': payload['@context'], ...payload };
+  res.type('application/vc+ld+json').json(ordered);
 });
 
 // GET /badges/:assertionId/image - Dynamically baked badge image with embedded credential
