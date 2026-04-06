@@ -178,12 +178,15 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   const jsonUrl = `https://${APP_DOMAIN}/api/v1/assertions/${assertion.id}`;
 
   // Determine status
+  const isAnonymized = (assertion.payloadJson as any)?.status === 'anonymized';
   const isRevoked = !!assertion.revokedAt;
   const isExpired = !!assertion.expiresAt && assertion.expiresAt < new Date();
   const isLegacy = !!(badgeClass.tenant as any).deletedAt || !!(badgeClass as any).deletedAt;
 
-  // Cryptographic proof verification
-  const proofResult = await verifyCredentialProof(assertion.payloadJson as object);
+  // Cryptographic proof verification (skip for anonymized credentials)
+  const proofResult = isAnonymized
+    ? { verified: false, error: 'Credential has been anonymized' }
+    : await verifyCredentialProof(assertion.payloadJson as object);
 
   let statusHtml: string;
   if (isRevoked) {

@@ -14,9 +14,12 @@ export async function verifyCredentialProof(
   credential: object,
 ): Promise<{ verified: boolean; error?: string }> {
   try {
-    // Detect cryptosuite from the proof
+    // Guard: credential must have a proof to verify
     const proof = (credential as any).proof;
-    const cryptosuiteName = proof?.cryptosuite;
+    if (!proof || !proof.type) {
+      return { verified: false, error: 'No cryptographic proof present' };
+    }
+    const cryptosuiteName = proof.cryptosuite;
 
     let suite: DataIntegrityProof;
     if (cryptosuiteName === 'ecdsa-sd-2023') {
