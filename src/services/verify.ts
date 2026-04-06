@@ -19,6 +19,13 @@ export async function verifyCredentialProof(
     if (!proof || !proof.type) {
       return { verified: false, error: 'No cryptographic proof present' };
     }
+
+    // Only DataIntegrityProof is supported (eddsa-rdfc-2022, ecdsa-sd-2023).
+    // Legacy proof types (e.g. Ed25519Signature2020) cannot be re-verified.
+    if (proof.type !== 'DataIntegrityProof') {
+      return { verified: false, error: `Unsupported legacy proof type: ${proof.type}` };
+    }
+
     const cryptosuiteName = proof.cryptosuite;
 
     let suite: DataIntegrityProof;

@@ -1,6 +1,6 @@
 # BONG — Badge Object Node Gateway
 
-A production-ready, multi-tenant Node.js microservice for issuing and verifying [OpenBadges 3.0](https://www.imsglobal.org/spec/ob/v3p0/) (W3C Verifiable Credentials), signed with Ed25519.
+A production-ready, multi-tenant Node.js microservice for issuing and verifying [OpenBadges 3.0](https://www.imsglobal.org/spec/ob/v3p0/) (W3C Verifiable Credentials), signed with Data Integrity Proofs (Ed25519 + P-256).
 
 ## Tech Stack
 
@@ -8,7 +8,7 @@ A production-ready, multi-tenant Node.js microservice for issuing and verifying 
 - **Framework:** Express 5
 - **Database:** PostgreSQL
 - **ORM:** Prisma
-- **Cryptography:** `@digitalcredentials/vc` + `Ed25519Signature2020`
+- **Cryptography:** `@digitalbazaar/vc` + Data Integrity Proofs (`eddsa-rdfc-2022`, `ecdsa-sd-2023`)
 - **API Key Hashing:** Argon2id
 - **Validation:** Zod
 - **Testing:** Vitest + Supertest
@@ -37,7 +37,7 @@ The `bong` CLI manages tenants, badges, assertions, and provides stats. Availabl
 ### Tenants
 
 ```bash
-# Create a tenant (auto-generates Ed25519 key pair and API key)
+# Create a tenant (auto-generates Ed25519 + P-256 key pairs and API key)
 bong tenant create --name "Acme Academy" --url "https://acme.edu"
 
 # Create with organization logo
@@ -311,7 +311,8 @@ Over 100 tests covering crypto, schemas, credential signing, auth, all API route
 │   │   ├── crypto.ts        # Encryption, Argon2id, hashing
 │   │   ├── logger.ts        # Pino structured logger + audit
 │   │   ├── schemas.ts       # Zod validation schemas
-│   │   └── documentLoader.ts
+│   │   ├── safeFetch.ts     # SSRF-safe HTTP fetch (blocks private IPs, enforces HTTPS)
+│   │   └── documentLoader.ts # JSON-LD context resolver + did:key: resolution
 │   ├── middleware/
 │   │   └── auth.ts          # X-API-Key authentication (Argon2id)
 │   ├── routes/
@@ -320,7 +321,8 @@ Over 100 tests covering crypto, schemas, credential signing, auth, all API route
 │   │   ├── webhooks.ts      # Course-completion webhook
 │   │   └── public.ts        # Verification page, raw credential, public keys, baked images
 │   └── services/
-│       ├── credential.ts    # W3C VC issuance with Ed25519Signature2020
+│       ├── credential.ts    # W3C VC issuance with Data Integrity Proofs (eddsa-rdfc-2022 / ecdsa-sd-2023)
+│       ├── verify.ts        # Cryptographic proof verification (both cryptosuites)
 │       ├── issuance.ts      # Atomic badge issuance (transaction + signing)
 │       ├── baking.ts        # PNG/SVG image baking (IMS Global Sec 5.3)
 │       ├── email.ts         # Badge notification emails via SMTP
