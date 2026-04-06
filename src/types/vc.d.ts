@@ -44,7 +44,7 @@ declare module '@digitalbazaar/eddsa-rdfc-2022-cryptosuite' {
 }
 
 declare module '@digitalbazaar/ecdsa-sd-2023-cryptosuite' {
-  export function createSignCryptosuite(): any;
+  export function createSignCryptosuite(options?: { mandatoryPointers?: string[] }): any;
   export function createVerifyCryptosuite(): any;
 }
 

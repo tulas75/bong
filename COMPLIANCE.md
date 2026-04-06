@@ -375,15 +375,17 @@ All Priority 2 items resolved:
 | G16 | Server-side proof verification (`vc.verifyCredential()`) | FIXED |
 | G19 | SSRF protection (`safeFetch()`) | FIXED |
 
-### Priority 3 - API Interoperability (fix in weeks)
+### Priority 3 - API Interoperability — [Full plan: `PRIORITY3.md`](./PRIORITY3.md)
 
-| ID | Gap | Effort | Impact |
-|----|-----|--------|--------|
-| G12 | OAuth 2.0 integration | 1-2 weeks | **Required for API compliance** |
-| G11 | OB3 REST API endpoints | 1-2 weeks | Standard API interop |
-| G13 | Service Discovery | 1-2 days | Automated client config |
-| G14 | Pagination | 2-3 days | Scalable credential listing |
-| G15 | `Imsx_StatusInfo` errors | 1 day | Standard error format |
+Uses `node-oidc-provider` (certified OIDC npm package) for OAuth2 `client_credentials` grant, mounted inside Express alongside existing routes. Nhost Auth was evaluated but lacks M2M support.
+
+| ID | Gap | Approach |
+|----|-----|----------|
+| G12 | OAuth 2.0 | `node-oidc-provider` with Prisma adapter, OB3 scopes, opaque tokens |
+| G11 | OB3 REST API endpoints | 5 endpoints at `/ims/ob/v3p0/` with Bearer auth |
+| G13 | Service Discovery | `GET /ims/ob/v3p0/discovery` (public) |
+| G14 | Pagination | `X-Total-Count` + RFC 5988 `Link` headers |
+| G15 | `Imsx_StatusInfo` errors | Standard error format on OB3 routes only |
 
 ### Priority 4 - Nice to Have
 
