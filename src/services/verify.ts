@@ -45,9 +45,10 @@ export async function verifyCredentialProof(
       return { verified: true };
     }
 
-    const errorMsg =
-      result.error?.message || result.error?.errors?.[0]?.message || 'Proof verification failed';
-    logger.warn({ error: errorMsg }, 'credential_proof_verification_failed');
+    const errors = result.error?.errors || [];
+    const details = errors.map((e: any) => e.message || e.cause?.message || String(e)).join('; ');
+    const errorMsg = details || result.error?.message || 'Proof verification failed';
+    logger.warn({ error: errorMsg, details: errors }, 'credential_proof_verification_failed');
     return { verified: false, error: errorMsg };
   } catch (err: any) {
     logger.warn({ err: err.message }, 'credential_proof_verification_error');

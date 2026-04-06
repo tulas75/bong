@@ -7,6 +7,7 @@ import ob3Context303 from '../contexts/ob3-context-3.0.3.json';
 import ed25519Context from '../contexts/ed25519-2020-v1.json';
 import statusListContext from '../contexts/status-list-2021-v1.json';
 import multikeyContext from '../contexts/multikey-v1.json';
+import didV1Context from '../contexts/did-v1.json';
 
 const CACHED_CONTEXTS: Record<string, object> = {
   'https://www.w3.org/2018/credentials/v1': credentialsV1,
@@ -16,6 +17,7 @@ const CACHED_CONTEXTS: Record<string, object> = {
   'https://w3id.org/security/suites/ed25519-2020/v1': ed25519Context,
   'https://www.w3.org/ns/credentials/status/v1': statusListContext,
   'https://w3id.org/security/multikey/v1': multikeyContext,
+  'https://www.w3.org/ns/did/v1': didV1Context,
 };
 
 /**
