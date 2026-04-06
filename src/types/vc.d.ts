@@ -9,6 +9,7 @@ declare module '@digitalbazaar/vc' {
     credential: object;
     suite: any;
     documentLoader: (url: string) => Promise<any>;
+    checkStatus?: (options: any) => Promise<{ verified: boolean }>;
   }): Promise<{ verified: boolean; error?: any }>;
 }
 

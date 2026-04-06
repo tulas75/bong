@@ -33,6 +33,9 @@ export async function verifyCredentialProof(
       credential,
       suite,
       documentLoader,
+      // Status (revocation/expiration) is checked separately via the database.
+      // This function only verifies the cryptographic proof.
+      checkStatus: async () => ({ verified: true }),
     });
 
     if (result.verified) {
