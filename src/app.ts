@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import cors from 'cors';
+import pinoHttp from 'pino-http';
+import rateLimit from 'express-rate-limit';
 import { requireApiKey } from './middleware/auth.js';
 import { logger } from './lib/logger.js';
 import badgesRouter from './routes/badges.js';
@@ -9,6 +11,26 @@ import webhooksRouter from './routes/webhooks.js';
 import publicRouter from './routes/public.js';
 
 const app = express();
+
+// Request access logs
+app.use(pinoHttp({ logger, quietReqLogger: true }));
+
+// Rate limiters
+const publicLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_PUBLIC || '60', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_AUTH || '30', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
 
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
@@ -76,13 +98,13 @@ app.get('/', (_req, res) => {
 </html>`);
 });
 
-// Public routes (no auth)
-app.use(publicRouter);
+// Public routes (no auth, public rate limit)
+app.use(publicLimiter, publicRouter);
 
-// Protected routes (require X-API-Key)
-app.use('/api/v1/badges', requireApiKey, badgesRouter);
-app.use('/api/v1/assertions', requireApiKey, assertionsRouter);
-app.use('/api/v1/webhooks', requireApiKey, webhooksRouter);
+// Protected routes (require X-API-Key, auth rate limit)
+app.use('/api/v1/badges', authLimiter, requireApiKey, badgesRouter);
+app.use('/api/v1/assertions', authLimiter, requireApiKey, assertionsRouter);
+app.use('/api/v1/webhooks', authLimiter, requireApiKey, webhooksRouter);
 
 // Health check
 app.get('/health', (_req, res) => {

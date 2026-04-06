@@ -22,26 +22,13 @@ Standard OB3 interoperability API (`/ims/ob/v3p0/`) with OAuth2 via `node-oidc-p
 - [ ] Report success/failure per row
 - [ ] Skip duplicates gracefully
 
-## Rate limiting e Protezione Brute-Force
+## ~~Rate limiting~~ DONE
 
-**Priority:** High
-**Related:** `src/app.ts`, `src/routes/public.ts`
+Moved to Completed section.
 
-La protezione Nginx filtra i DDoS, ma l'app deve difendersi in autonomia dai tentativi di brute-force enumerativi sugli UUID dei badge.
+## ~~Log Rotation~~ DONE
 
-- [ ] Aggiungere il middleware `express-rate-limit`.
-- [ ] Configurare un rate limit specifico e stringente sulla rotta pubblica `GET /verify/:assertionId`.
-- [ ] Mantenere rate limiting anche per le rotte autenticate e generali.
-
-## Log Rotation
-
-**Priority:** High
-**Related:** `package.json`, `src/lib/logger.ts`
-
-L'app necessita di un sistema per non saturare lo spazio disco della VM (Elestio) coi log testuali dei servizi in esecuzione nel tempo. L'app utilizza Pino per il logging strutturato.
-
-- [ ] Configurare rotazione dei log (es. `pino-roll` o logrotate esterno).
-- [ ] Prevedere rotazione dei file di log per data/dimensioni con eventuale auto-cancellazione o storage archiviato dei log troppo vecchi.
+Moved to Completed section.
 
 ## API pagination
 
@@ -172,3 +159,11 @@ Optional `expiresAt`, `validUntil` in VC v2 credential, verification page shows 
 ## QR Code on Verification Page
 
 Server-side QR code generation (`qrcode` package) as PNG data URI. Displayed on the verification page with "Scan to verify" label. CSP-compliant (uses `data:` img-src).
+
+## Rate Limiting
+
+`express-rate-limit`: public routes 60 req/min per IP, authenticated routes 30 req/min per IP. Configurable via `RATE_LIMIT_PUBLIC` and `RATE_LIMIT_AUTH` env vars.
+
+## Request Access Logs + Log Rotation
+
+`pino-http` middleware logs every request (method, url, status, response time). Docker log rotation configured (`max-size: 10m`, `max-file: 5`).

@@ -17,6 +17,11 @@ services:
     build: .
     ports:
       - "${PORT}:${PORT}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public"
       APP_DOMAIN: "${APP_DOMAIN}"
