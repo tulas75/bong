@@ -147,6 +147,8 @@ bong stats
 | `SMTP_USER`         | SMTP username                                               | empty                                |
 | `SMTP_PASS`         | SMTP password                                               | empty                                |
 | `SMTP_FROM`         | Sender address for badge emails                             | `"BONG Badges <badges@example.com>"` |
+| `RATE_LIMIT_PUBLIC` | Max requests/min per IP for public routes                    | `60`                                 |
+| `RATE_LIMIT_AUTH`   | Max requests/min per IP for authenticated routes             | `30`                                 |
 
 ## API Endpoints
 
@@ -250,8 +252,10 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 - **CSP headers** — Content Security Policy on verification pages
 - **CORS** — configurable via `CORS_ORIGINS`
 - **Duplicate prevention** — partial unique index on `(badgeClassId, recipientEmail)` for active records, returns `409`
+- **Rate limiting** — `express-rate-limit` with 60 req/min for public routes, 30 req/min for authenticated routes (configurable via `RATE_LIMIT_PUBLIC`/`RATE_LIMIT_AUTH`). Returns 429 with 1-minute cooldown window.
 - **SSRF protection** — image fetching uses `safeFetch()` which blocks private IPs, enforces HTTPS, limits redirects, and applies timeouts
-- **Audit logging** — structured pino logs for auth, issuance, revocation, and webhooks
+- **Request access logs** — `pino-http` logs every request with method, URL, status code, and response time
+- **Audit logging** — structured Pino logs for auth, issuance, revocation, and webhooks
 
 ## Open Badges v3 Compliance
 
@@ -267,6 +271,7 @@ When a badge is issued (via API, webhook, or CLI), an email is automatically sen
 - **Content negotiation** — `GET /verify/:assertionId` returns `application/vc+ld+json` when the `Accept` header includes `application/vc+ld+json` or `application/ld+json`, enabling OB3 validators to resolve credential URLs.
 - **Credential `id` resolution** — The credential `id` field points to `/api/v1/assertions/:id`, which always returns `application/vc+ld+json`, ensuring validators can dereference credential identifiers without content negotiation.
 - **Public key endpoint** — `/keys/:tenantId` serves `application/ld+json` for external signature verification.
+- **QR code** — Verification page includes a server-generated QR code encoding the verify URL for easy sharing/scanning.
 - **OB3 3.0.3 context** — Credentials use the `context-3.0.3.json` Open Badges context with `identifier` as array for strict validator compliance.
 
 ## Data Integrity (No-Delete Policy)
@@ -291,7 +296,7 @@ npm test
 npm run test:watch
 ```
 
-Over 100 tests covering crypto, schemas, credential signing, auth, all API routes, and revocation/expiration flows. Tests use mocked Prisma (no database required).
+132 tests covering crypto, schemas, credential signing, auth, all API routes, webhooks, revocation, and expiration flows. Tests use mocked Prisma (no database required).
 
 ## Project Structure
 
