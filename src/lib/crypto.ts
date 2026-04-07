@@ -1,3 +1,10 @@
+/**
+ * @module crypto
+ * Cryptographic utilities for field-level encryption (AES-256-GCM),
+ * API-key hashing (Argon2id), and email identity hashing. All encrypted values
+ * are stored as `iv:authTag:ciphertext` hex strings.
+ */
+
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
 
@@ -5,6 +12,11 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 
+/**
+ * Read and validate the `ENCRYPTION_KEY` environment variable.
+ * @returns A 64-character hex string (256-bit key).
+ * @throws If the key is missing or malformed.
+ */
 export function getEncryptionKey(): string {
   const key = process.env.ENCRYPTION_KEY;
   if (!key || !/^[0-9a-f]{64}$/i.test(key)) {
@@ -16,6 +28,12 @@ export function getEncryptionKey(): string {
   return key;
 }
 
+/**
+ * Encrypt a plaintext string using AES-256-GCM.
+ * @param plaintext - The value to encrypt.
+ * @param masterKeyHex - 64-char hex encryption key.
+ * @returns `iv:authTag:ciphertext` hex string.
+ */
 export function encryptField(plaintext: string, masterKeyHex: string): string {
   const key = Buffer.from(masterKeyHex, 'hex');
   const iv = randomBytes(IV_LENGTH);
@@ -30,6 +48,13 @@ export function encryptField(plaintext: string, masterKeyHex: string): string {
   return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
 }
 
+/**
+ * Decrypt a value encrypted by {@link encryptField}.
+ * @param encrypted - `iv:authTag:ciphertext` hex string.
+ * @param masterKeyHex - 64-char hex encryption key.
+ * @returns The original plaintext.
+ * @throws If the format is invalid or decryption fails (tampered data).
+ */
 export function decryptField(encrypted: string, masterKeyHex: string): string {
   const parts = encrypted.split(':');
   if (parts.length !== 3) {
@@ -57,13 +82,15 @@ export const API_KEY_PREFIX_LENGTH = 8;
 /**
  * Extract the lookup prefix from a raw API key.
  * Keys have the format `bong_<hex>`, so we take the first 8 chars of the hex portion.
+ * @param rawKey - Full API key string (e.g. `bong_abc123...`).
+ * @returns An 8-character prefix used for database lookups.
  */
 export function extractApiKeyPrefix(rawKey: string): string {
   const body = rawKey.startsWith('bong_') ? rawKey.slice(5) : rawKey;
   return body.slice(0, API_KEY_PREFIX_LENGTH);
 }
 
-/** Hash an API key with Argon2id. Returns the PHC-format hash string. */
+/** Hash an API key with Argon2id (64 MiB, 3 iterations). Returns a PHC-format string. */
 export async function hashApiKey(rawKey: string): Promise<string> {
   return argon2.hash(rawKey, {
     type: argon2.argon2id,
@@ -73,16 +100,25 @@ export async function hashApiKey(rawKey: string): Promise<string> {
   });
 }
 
-/** Verify a raw API key against an Argon2id hash. */
+/** Verify a raw API key against an Argon2id PHC hash. */
 export async function verifyApiKey(rawKey: string, hash: string): Promise<boolean> {
   return argon2.verify(hash, rawKey);
 }
 
-/** @deprecated Use hashApiKey (argon2id) for new keys. Retained only for migration verification. */
+/**
+ * @deprecated Use {@link hashApiKey} (Argon2id) for new keys.
+ * Retained only for migration verification of legacy SHA-256 hashes.
+ */
 export function hashApiKeySha256(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
 }
 
+/**
+ * Hash an email address with a random or explicit salt for pseudonymous identity.
+ * @param email - Recipient email address.
+ * @param explicitSalt - Optional existing salt (for re-derivation).
+ * @returns Object with `identityHash` (`sha256$<hex>`) and the `salt` used.
+ */
 export function hashEmail(
   email: string,
   explicitSalt?: string,
@@ -95,6 +131,11 @@ export function hashEmail(
   return { identityHash: `sha256$${hash}`, salt };
 }
 
+/**
+ * Escape HTML-special characters to prevent XSS in rendered templates.
+ * @param str - Raw string.
+ * @returns HTML-safe string with `&`, `<`, `>`, `"`, `'` escaped.
+ */
 export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')

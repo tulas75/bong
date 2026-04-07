@@ -1,3 +1,9 @@
+/**
+ * @module routes/assertions
+ * Protected routes for issuing badges (`POST /api/v1/assertions`)
+ * and revoking assertions (`POST /api/v1/assertions/:id/revoke`).
+ */
+
 import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { prismaUnfiltered } from '../lib/prisma.js';
@@ -8,6 +14,16 @@ import { audit } from '../lib/logger.js';
 
 const router = Router();
 
+/**
+ * Issue a badge to a recipient.
+ *
+ * @route POST /api/v1/assertions
+ * @auth Requires `X-API-Key` header.
+ * @returns 201 — Created assertion.
+ * @returns 400 — Validation error.
+ * @returns 404 — Badge class not found.
+ * @returns 409 — Badge already issued to this recipient.
+ */
 router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   const parsed = createAssertionSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -67,6 +83,17 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   res.status(201).json(result.assertion);
 });
 
+/**
+ * Revoke an issued assertion.
+ *
+ * @route POST /api/v1/assertions/:id/revoke
+ * @auth Requires `X-API-Key` header (must own the assertion's badge class).
+ * @returns 200 — Updated assertion.
+ * @returns 400 — Validation error.
+ * @returns 403 — Not the owning tenant.
+ * @returns 404 — Assertion not found.
+ * @returns 409 — Assertion already revoked.
+ */
 router.post('/:id/revoke', async (req: AuthenticatedRequest, res: Response) => {
   const assertionId = req.params.id as string;
 

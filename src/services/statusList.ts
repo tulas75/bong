@@ -1,3 +1,10 @@
+/**
+ * @module services/statusList
+ * W3C Bitstring Status List credential generation. Encodes
+ * revocation status as a gzipped bitstring and signs it with the tenant's
+ * Ed25519 key.
+ */
+
 import * as Ed25519Multikey from '@digitalbazaar/ed25519-multikey';
 import { cryptosuite as eddsaRdfc2022CryptoSuite } from '@digitalbazaar/eddsa-rdfc-2022-cryptosuite';
 import { DataIntegrityProof } from '@digitalbazaar/data-integrity';
@@ -6,7 +13,8 @@ import { documentLoader } from '../lib/documentLoader.js';
 
 const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
-interface SignStatusListParams {
+/** Parameters for the {@link signStatusListCredential} function. */
+export interface SignStatusListParams {
   tenantId: string;
   publicKeyMultibase: string;
   privateKeyMultibase: string;
@@ -15,6 +23,14 @@ interface SignStatusListParams {
   revokedIndices: { statusListIndex: number }[];
 }
 
+/**
+ * Build and sign a W3C Bitstring Status List credential for a tenant.
+ * Encodes the revocation bitstring (minimum 131 072 bits), gzip-compresses it,
+ * base64url-encodes it, and wraps it in a signed Verifiable Credential.
+ *
+ * @param params - See {@link SignStatusListParams}.
+ * @returns The signed BitstringStatusListCredential.
+ */
 export async function signStatusListCredential(params: SignStatusListParams): Promise<object> {
   const {
     tenantId,

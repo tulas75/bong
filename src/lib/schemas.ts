@@ -1,5 +1,11 @@
+/**
+ * @module schemas
+ * Zod validation schemas for all API request bodies.
+ */
+
 import { z } from 'zod';
 
+/** Schema for `POST /api/v1/badges` — create a new badge class. */
 export const createBadgeClassSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
@@ -44,6 +50,7 @@ export const createBadgeClassSchema = z.object({
   templateHtml: z.string().optional(),
 });
 
+/** Schema for `POST /api/v1/assertions` — issue a badge to a recipient. */
 export const createAssertionSchema = z.object({
   badgeClassId: z.string().uuid(),
   recipientEmail: z.string().email(),
@@ -52,10 +59,12 @@ export const createAssertionSchema = z.object({
   cryptosuite: z.enum(['eddsa-rdfc-2022', 'ecdsa-sd-2023']).default('eddsa-rdfc-2022'),
 });
 
+/** Schema for `POST /api/v1/assertions/:id/revoke` — revoke an assertion with a reason. */
 export const revokeAssertionSchema = z.object({
   reason: z.string().min(1),
 });
 
+/** Schema for `POST /api/v1/webhooks/course-completed` — LMS course completion payload. */
 export const courseCompletionWebhookSchema = z.object({
   resource: z.string(),
   action: z.string(),
