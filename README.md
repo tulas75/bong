@@ -236,7 +236,7 @@ If the tenant has a webhook secret, the request must include an `X-Webhook-Signa
 | `GET /badges/:assertionId/image`      | Dynamically baked badge image (PNG/SVG with embedded credential)            |
 | `GET /keys/:tenantId`                 | Tenant's public key document (`application/ld+json`)                        |
 | `GET /status/list/:tenantId`          | W3C Bitstring Status List for revocation checking                           |
-| `GET /health`                         | Health check                                                                |
+| `GET /health`                         | Health check with DB connectivity (returns 503 if DB unreachable)           |
 
 ## Email Notifications
 
@@ -296,7 +296,7 @@ npm test
 npm run test:watch
 ```
 
-132 tests covering crypto, schemas, credential signing, auth, all API routes, webhooks, revocation, and expiration flows. Tests use mocked Prisma (no database required).
+133 tests covering crypto, schemas, credential signing, auth, all API routes, webhooks, revocation, and expiration flows. Tests use mocked Prisma (no database required).
 
 ## Project Structure
 

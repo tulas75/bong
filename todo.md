@@ -2,16 +2,9 @@
 
 ## Before Production
 
-### Health check with DB connectivity
+### ~~Health check with DB connectivity~~ DONE
 
-**Priority:** High
-**Related:** `src/app.ts`
-
-Current `/health` returns `{ status: "ok" }` without checking database. Should verify PostgreSQL is reachable.
-
-- [ ] Query `SELECT 1` from Prisma in the health endpoint
-- [ ] Return `{ status: "ok", db: "connected" }` or `503` if DB is down
-- [ ] Useful for Docker healthcheck and load balancer probes
+`/health` now queries PostgreSQL via `SELECT 1`. Returns `{ status: "ok", db: "connected" }` or `503 { status: "error", db: "unreachable" }`.
 
 ### CI pipeline
 

@@ -5,6 +5,7 @@ import pinoHttp from 'pino-http';
 import rateLimit from 'express-rate-limit';
 import { requireApiKey } from './middleware/auth.js';
 import { logger } from './lib/logger.js';
+import { prismaUnfiltered } from './lib/prisma.js';
 import badgesRouter from './routes/badges.js';
 import assertionsRouter from './routes/assertions.js';
 import webhooksRouter from './routes/webhooks.js';
@@ -106,9 +107,14 @@ app.use('/api/v1/badges', authLimiter, requireApiKey, badgesRouter);
 app.use('/api/v1/assertions', authLimiter, requireApiKey, assertionsRouter);
 app.use('/api/v1/webhooks', authLimiter, requireApiKey, webhooksRouter);
 
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+// Health check with DB connectivity
+app.get('/health', async (_req, res) => {
+  try {
+    await prismaUnfiltered.$queryRawUnsafe('SELECT 1');
+    res.json({ status: 'ok', db: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'error', db: 'unreachable' });
+  }
 });
 
 // Global error handler
