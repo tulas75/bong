@@ -296,7 +296,7 @@ npm test
 npm run test:watch
 ```
 
-133 tests covering crypto, schemas, credential signing, auth, all API routes, webhooks, revocation, and expiration flows. Tests use mocked Prisma (no database required).
+150 tests covering crypto, schemas, credential signing, CLI commands, auth, all API routes, webhooks, revocation, and expiration flows. Tests use mocked Prisma (no database required).
 
 ## Project Structure
 

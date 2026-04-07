@@ -17,14 +17,9 @@ Tests only run locally. A failed deploy from untested code is a matter of time.
 - [ ] Run `npx tsc --noEmit` + `npx vitest run`
 - [ ] Cache node_modules for faster runs
 
-### CLI tests
+### ~~CLI tests~~ DONE
 
-**Priority:** High
-**Related:** `tests/`, `src/cli.ts`
-
-The CLI manages keys and credentials — untested CLI commands are risky in production.
-
-- [ ] Add CLI tests (tenant create/list/delete, badge create/issue, assertion list/revoke/anonymize)
+17 tests covering tenant create/list/delete/rotate-key, badge create/list/delete, assertion list/revoke/delete/anonymize, and stats.
 
 ---
 

@@ -488,4 +488,10 @@ program
     );
   });
 
-program.parseAsync().then(() => process.exit(0));
+export { program };
+
+// Only run when executed directly (not when imported for testing)
+const isDirectRun = typeof require !== 'undefined' && require.main === module;
+if (isDirectRun) {
+  program.parseAsync().then(() => process.exit(0));
+}
