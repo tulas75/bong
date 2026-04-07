@@ -1,3 +1,10 @@
+/**
+ * @module auth
+ * Express middleware that authenticates requests via the
+ * `X-API-Key` header. On success the decrypted tenant data is attached to
+ * `req.tenant` for downstream handlers.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma.js';
 import {
@@ -8,6 +15,10 @@ import {
 } from '../lib/crypto.js';
 import { audit } from '../lib/logger.js';
 
+/**
+ * Extended Express request with an authenticated tenant attached.
+ * Populated by {@link requireApiKey} after successful API-key verification.
+ */
 export interface AuthenticatedRequest extends Request {
   tenant?: {
     id: string;
@@ -22,6 +33,13 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
+/**
+ * Express middleware that validates the `X-API-Key` header, looks up the
+ * tenant by key prefix, verifies the Argon2id hash, and attaches the
+ * decrypted tenant record to `req.tenant`.
+ *
+ * Responds with `401` if the key is missing or invalid.
+ */
 export async function requireApiKey(
   req: AuthenticatedRequest,
   res: Response,

@@ -1,4 +1,14 @@
 #!/usr/bin/env node
+/**
+ * @module cli
+ * Command-line interface for BONG. Provides commands for managing
+ * tenants, badge classes, and assertions — including issuing, revoking,
+ * baking, anonymizing, and soft-deleting records.
+ *
+ * The CLI is exported as a {@link program} instance so it can be tested without
+ * triggering `process.argv` parsing.
+ */
+
 import 'dotenv/config';
 import { Command } from 'commander';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -488,6 +498,10 @@ program
     );
   });
 
+/**
+ * The Commander program instance. Exported for testing — callers can invoke
+ * `program.parseAsync()` directly.
+ */
 export { program };
 
 // Only run when executed directly (not when imported for testing)

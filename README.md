@@ -147,8 +147,8 @@ bong stats
 | `SMTP_USER`         | SMTP username                                               | empty                                |
 | `SMTP_PASS`         | SMTP password                                               | empty                                |
 | `SMTP_FROM`         | Sender address for badge emails                             | `"BONG Badges <badges@example.com>"` |
-| `RATE_LIMIT_PUBLIC` | Max requests/min per IP for public routes                    | `60`                                 |
-| `RATE_LIMIT_AUTH`   | Max requests/min per IP for authenticated routes             | `30`                                 |
+| `RATE_LIMIT_PUBLIC` | Max requests/min per IP for public routes                   | `60`                                 |
+| `RATE_LIMIT_AUTH`   | Max requests/min per IP for authenticated routes            | `30`                                 |
 
 ## API Endpoints
 
@@ -227,16 +227,16 @@ If the tenant has a webhook secret, the request must include an `X-Webhook-Signa
 
 ### Public (no auth)
 
-| Endpoint                              | Description                                                                 |
-| ------------------------------------- | --------------------------------------------------------------------------- |
-| `GET /`                               | Landing page                                                                |
+| Endpoint                              | Description                                                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `GET /`                               | Landing page                                                                                                      |
 | `GET /verify/:assertionId`            | HTML verification page (returns JSON-LD when `Accept` includes `application/vc+ld+json` or `application/ld+json`) |
-| `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/vc+ld+json`)                 |
-| `GET /achievements/:badgeClassId`     | Achievement JSON-LD document (resolves `achievement.id` URIs)               |
-| `GET /badges/:assertionId/image`      | Dynamically baked badge image (PNG/SVG with embedded credential)            |
-| `GET /keys/:tenantId`                 | Tenant's public key document (`application/ld+json`)                        |
-| `GET /status/list/:tenantId`          | W3C Bitstring Status List for revocation checking                           |
-| `GET /health`                         | Health check with DB connectivity (returns 503 if DB unreachable)           |
+| `GET /api/v1/assertions/:assertionId` | Raw signed Verifiable Credential (`application/vc+ld+json`)                                                       |
+| `GET /achievements/:badgeClassId`     | Achievement JSON-LD document (resolves `achievement.id` URIs)                                                     |
+| `GET /badges/:assertionId/image`      | Dynamically baked badge image (PNG/SVG with embedded credential)                                                  |
+| `GET /keys/:tenantId`                 | Tenant's public key document (`application/ld+json`)                                                              |
+| `GET /status/list/:tenantId`          | W3C Bitstring Status List for revocation checking                                                                 |
+| `GET /health`                         | Health check with DB connectivity (returns 503 if DB unreachable)                                                 |
 
 ## Email Notifications
 
@@ -297,6 +297,16 @@ npm run test:watch
 ```
 
 150 tests covering crypto, schemas, credential signing, CLI commands, auth, all API routes, webhooks, revocation, and expiration flows. Tests use mocked Prisma (no database required).
+
+## Architecture
+
+The application has three entry points that bootstrap the runtime but are not part of the documented API surface:
+
+- **`src/index.ts`** — Server boot script. Loads `dotenv`, creates the Express app, and starts listening on the configured `PORT`.
+- **`src/app.ts`** — Express application factory. Configures middleware (CORS, rate limiting, JSON body parsing, Pino HTTP logging), mounts public and authenticated route handlers, serves static assets from `/public`, and registers a global error handler. Exports the `app` instance.
+- **`src/cli.ts`** — Commander-based CLI (`bong`). Provides commands for managing tenants (`create`, `list`, `delete`, `rotate-key`), badge classes (`create`, `list`, `delete`, `issue`), assertions (`list`, `revoke`, `delete`, `bake`, `anonymize`), and a `stats` overview. Exports the `program` instance for testing.
+
+All business logic, middleware, and route handlers live in their own modules under `src/lib/`, `src/middleware/`, `src/routes/`, and `src/services/` — each documented with TSDoc and rendered in the API reference.
 
 ## Project Structure
 

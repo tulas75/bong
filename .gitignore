@@ -1,5 +1,7 @@
 node_modules/
 dist/
+docs/
 .env
 src/generated/
 .DS_Store
+pgdata/

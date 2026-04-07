@@ -1,3 +1,10 @@
+/**
+ * @module services/credential
+ * Verifiable Credential signing. Builds an OpenBadgeCredential
+ * payload compliant with OBv3 (IMS Global) and signs it using either
+ * `eddsa-rdfc-2022` (Ed25519) or `ecdsa-sd-2023` (P-256 selective disclosure).
+ */
+
 import * as Ed25519Multikey from '@digitalbazaar/ed25519-multikey';
 import * as EcdsaMultikey from '@digitalbazaar/ecdsa-multikey';
 import { cryptosuite as eddsaRdfc2022CryptoSuite } from '@digitalbazaar/eddsa-rdfc-2022-cryptosuite';
@@ -7,11 +14,13 @@ import * as vc from '@digitalbazaar/vc';
 import { documentLoader } from '../lib/documentLoader.js';
 import { hashEmail } from '../lib/crypto.js';
 
+/** Supported Data-Integrity cryptosuite identifiers. */
 export type Cryptosuite = 'eddsa-rdfc-2022' | 'ecdsa-sd-2023';
 
 const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
-interface IssueCredentialParams {
+/** Parameters for the {@link issueCredential} function. */
+export interface IssueCredentialParams {
   assertionId: string;
   cryptosuite?: Cryptosuite;
   tenant: {
@@ -40,11 +49,19 @@ interface IssueCredentialParams {
   recipientSalt?: string;
 }
 
+/** Result of {@link issueCredential}: the signed credential and the salt used for identity hashing. */
 export interface IssueCredentialResult {
   credential: object;
   salt: string;
 }
 
+/**
+ * Build and sign an OpenBadgeCredential (OBv3 / W3C VC v2).
+ *
+ * @param params - See {@link IssueCredentialParams}.
+ * @returns The signed credential object and the salt used for the recipient identity hash.
+ * @throws If `ecdsa-sd-2023` is requested but the tenant has no P-256 keys.
+ */
 export async function issueCredential(
   params: IssueCredentialParams,
 ): Promise<IssueCredentialResult> {

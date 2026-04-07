@@ -1,13 +1,22 @@
+/**
+ * @module services/baking
+ * Badge image baking. Embeds a signed Verifiable Credential into
+ * a PNG image (via iTXt chunk per IMS Global §5.3.1.1) or an SVG image
+ * (via `openbadges:credential` element per IMS Global §5.3.2.1).
+ */
+
 import extract from 'png-chunks-extract';
 import encode from 'png-chunks-encode';
 import { logger } from '../lib/logger.js';
 import { safeFetch } from '../lib/safeFetch.js';
 
+/** PNG magic bytes used for format detection. */
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 
 /**
- * Build a PNG iTXt chunk per IMS Global Sec 5.3.1.1.
- * keyword: "openbadgecredential", compression: 0 (uncompressed)
+ * Build a PNG iTXt chunk with keyword `openbadgecredential` per IMS Global §5.3.1.1.
+ * @param credentialJson - JSON string of the signed credential.
+ * @returns An iTXt chunk object suitable for `png-chunks-encode`.
  */
 function createItxtChunk(credentialJson: string): { name: string; data: Uint8Array } {
   const keyword = Buffer.from('openbadgecredential\0', 'utf-8'); // keyword + null separator
@@ -30,7 +39,12 @@ function createItxtChunk(credentialJson: string): { name: string; data: Uint8Arr
 }
 
 /**
- * Bake a signed credential into a PNG image via iTXt chunk.
+ * Bake a signed credential into a PNG image by injecting an `openbadgecredential`
+ * iTXt chunk before the IEND chunk.
+ *
+ * @param imageBuffer - Original PNG image buffer.
+ * @param credentialJson - JSON string of the signed credential.
+ * @returns Baked PNG buffer.
  */
 export function bakePng(imageBuffer: Buffer, credentialJson: string): Buffer {
   const chunks = extract(new Uint8Array(imageBuffer));
@@ -44,7 +58,12 @@ export function bakePng(imageBuffer: Buffer, credentialJson: string): Buffer {
 }
 
 /**
- * Bake a signed credential into an SVG image per IMS Global Sec 5.3.2.1.
+ * Bake a signed credential into an SVG image by adding the `openbadges`
+ * namespace and a `<![CDATA[...]]>` credential element before `</svg>`.
+ *
+ * @param svgString - Original SVG source.
+ * @param credentialJson - JSON string of the signed credential.
+ * @returns Modified SVG string with embedded credential.
  */
 export function bakeSvg(svgString: string, credentialJson: string): string {
   // Add namespace to root <svg> if not already present
@@ -64,8 +83,12 @@ export function bakeSvg(svgString: string, credentialJson: string): string {
 }
 
 /**
- * Fetch badge image and bake the credential into it.
- * Returns the baked buffer and file extension, or null if baking fails.
+ * Fetch a badge image from the given URL (SSRF-safe) and bake the credential
+ * into it. Supports PNG and SVG formats.
+ *
+ * @param imageUrl - HTTPS URL of the original badge image.
+ * @param credentialJson - JSON string of the signed credential.
+ * @returns Object with the baked `buffer` and file `extension`, or `null` on failure.
  */
 export async function bakeCredentialImage(
   imageUrl: string,

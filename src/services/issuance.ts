@@ -1,3 +1,10 @@
+/**
+ * @module services/issuance
+ * Core badge-issuance orchestration. Claims a status-list index
+ * atomically, signs a Verifiable Credential, persists the assertion, bakes
+ * the credential into the badge image, and sends an email notification.
+ */
+
 import { PrismaClient } from '../generated/prisma/client.js';
 import { v4 as uuidv4 } from 'uuid';
 import { issueCredential, Cryptosuite } from './credential.js';
@@ -7,7 +14,8 @@ import { logger } from '../lib/logger.js';
 
 const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
-interface IssueBadgeParams {
+/** Parameters for the {@link issueBadge} function. */
+export interface IssueBadgeParams {
   prisma: PrismaClient;
   cryptosuite?: Cryptosuite;
   tenant: {
@@ -33,6 +41,17 @@ interface IssueBadgeParams {
   expiresAt?: Date;
 }
 
+/**
+ * Issue a badge to a recipient in an atomic transaction:
+ * 1. Increment the tenant's `nextStatusIndex` to claim a slot.
+ * 2. Sign the Verifiable Credential with the tenant's key.
+ * 3. Persist the assertion record.
+ * 4. Bake the credential into the badge image (best-effort).
+ * 5. Send an email notification (non-blocking).
+ *
+ * @param params - See {@link IssueBadgeParams}.
+ * @returns The created assertion and its public verification URL.
+ */
 export async function issueBadge(params: IssueBadgeParams) {
   const { prisma, cryptosuite, tenant, badgeClass, recipientEmail, recipientName, expiresAt } =
     params;

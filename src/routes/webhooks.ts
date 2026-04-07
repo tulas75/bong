@@ -1,3 +1,10 @@
+/**
+ * @module routes/webhooks
+ * Protected webhook endpoint `POST /api/v1/webhooks/course-completed`
+ * that auto-issues a badge when an LMS reports course completion. Verifies
+ * the HMAC signature when the tenant has a `webhookSecret` configured.
+ */
+
 import { Router, Response } from 'express';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { prisma } from '../lib/prisma.js';
@@ -9,6 +16,18 @@ import { audit } from '../lib/logger.js';
 
 const router = Router();
 
+/**
+ * LMS course-completion webhook. Looks up the badge class linked to the
+ * external course ID and auto-issues it to the learner.
+ *
+ * @route POST /api/v1/webhooks/course-completed
+ * @auth Requires `X-API-Key` header; optionally verifies `X-Webhook-Signature`.
+ * @returns 201 — Assertion issued.
+ * @returns 400 — Validation error.
+ * @returns 401 — Missing or invalid webhook signature.
+ * @returns 404 — No badge class for the given course ID.
+ * @returns 409 — Badge already issued.
+ */
 router.post('/course-completed', async (req: AuthenticatedRequest, res: Response) => {
   // Verify webhook signature if tenant has a webhook secret
   if (req.tenant!.webhookSecret) {

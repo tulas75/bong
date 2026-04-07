@@ -1,6 +1,13 @@
+/**
+ * @module safeFetch
+ * SSRF-safe HTTP client. Blocks requests to private / loopback IPs,
+ * enforces HTTPS, limits redirects, response size, and connection timeout.
+ */
+
 import { lookup } from 'dns/promises';
 import { logger } from './logger.js';
 
+/** IPv4 and IPv6 prefixes that indicate private, loopback, or link-local addresses. */
 const PRIVATE_RANGES = [
   // IPv4
   { prefix: '10.', label: 'RFC1918' },
@@ -31,16 +38,30 @@ const PRIVATE_RANGES = [
   { prefix: 'fd', label: 'unique-local' },
 ];
 
+/**
+ * Check whether an IP address falls within a private range.
+ * @param ip - Resolved IP address string.
+ */
 function isPrivateIp(ip: string): boolean {
   return PRIVATE_RANGES.some((r) => ip.startsWith(r.prefix));
 }
 
+/** Default connection timeout in milliseconds. */
 const DEFAULT_TIMEOUT = 5000;
-const MAX_BODY_SIZE = 1024 * 1024; // 1 MB
+/** Maximum response body size in bytes. */
+const MAX_BODY_SIZE = 1024 * 1024;
+/** Maximum number of HTTP redirects to follow. */
 const MAX_REDIRECTS = 3;
 
 /**
- * SSRF-safe fetch that blocks private IPs and enforces HTTPS.
+ * SSRF-safe `fetch`. Resolves DNS first, rejects private IPs, enforces HTTPS,
+ * follows up to {@link MAX_REDIRECTS} hops (validuating each), and enforces
+ * a response body size limit.
+ *
+ * @param url - The HTTPS URL to fetch.
+ * @param options - Optional overrides for `timeout` and `maxBodySize`.
+ * @returns A standard `Response` object.
+ * @throws On non-HTTPS URLs, private-IP resolution, too many redirects, or oversized responses.
  */
 export async function safeFetch(
   url: string,

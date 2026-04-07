@@ -1,3 +1,11 @@
+/**
+ * @module documentLoader
+ * JSON-LD document loader for Verifiable Credential operations.
+ * Resolves well-known context URIs from a local cache (avoiding network hits),
+ * resolves `did:key:` URIs by deriving the key document inline, and falls back
+ * to network fetch for any other URI.
+ */
+
 import * as Ed25519Multikey from '@digitalbazaar/ed25519-multikey';
 import * as EcdsaMultikey from '@digitalbazaar/ecdsa-multikey';
 import credentialsV1 from '../contexts/credentials-v1.json';
@@ -9,6 +17,7 @@ import statusListContext from '../contexts/status-list-2021-v1.json';
 import multikeyContext from '../contexts/multikey-v1.json';
 import didV1Context from '../contexts/did-v1.json';
 
+/** Pre-loaded JSON-LD contexts keyed by their URI. */
 const CACHED_CONTEXTS: Record<string, object> = {
   'https://www.w3.org/2018/credentials/v1': credentialsV1,
   'https://www.w3.org/ns/credentials/v2': credentialsV2,
@@ -21,8 +30,11 @@ const CACHED_CONTEXTS: Record<string, object> = {
 };
 
 /**
- * Resolve a did:key: URI to a verification method document.
- * Supports Ed25519 Multikey (z6Mk prefix).
+ * Resolve a `did:key:` URI to a verification-method or DID document.
+ * Supports Ed25519 Multikey (`z6Mk` prefix) and P-256 Multikey (`zDn` prefix).
+ *
+ * @param url - A `did:key:` URI, optionally with a `#fragment`.
+ * @returns A document-loader result with the resolved document.
  */
 async function resolveDidKey(url: string) {
   // did:key:z6Mk... or did:key:z6Mk...#z6Mk...
@@ -67,6 +79,14 @@ async function resolveDidKey(url: string) {
   return { contextUrl: null, documentUrl: url, document: keyDocument };
 }
 
+/**
+ * JSON-LD document loader used by `@digitalbazaar/vc`.
+ * Tries the local context cache first, then `did:key:` resolution,
+ * then falls back to a network fetch.
+ *
+ * @param url - The URI to resolve.
+ * @returns A `{ contextUrl, documentUrl, document }` tuple.
+ */
 export async function documentLoader(url: string) {
   if (CACHED_CONTEXTS[url]) {
     return {

@@ -1,3 +1,10 @@
+/**
+ * @module routes/public
+ * Unauthenticated public routes: badge verification page, raw
+ * JSON-LD credential retrieval, baked badge images, achievement documents,
+ * public key documents, and W3C Bitstring Status List endpoints.
+ */
+
 import { Router, Request, Response } from 'express';
 import QRCode from 'qrcode';
 import { prismaUnfiltered } from '../lib/prisma.js';
@@ -10,6 +17,7 @@ const router = Router();
 
 const APP_DOMAIN = process.env.APP_DOMAIN || 'localhost:3000';
 
+/** HTML template for the badge verification page, used when no custom template is set. */
 const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -135,12 +143,18 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 </body>
 </html>`;
 
+/**
+ * Replace `{{key}}` placeholders with HTML-escaped values.
+ * @param template - HTML template string.
+ * @param vars - Key-value map for placeholder substitution.
+ */
 function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     return vars[key] !== undefined ? escapeHtml(vars[key]) : match;
   });
 }
 
+/** Template keys that should be injected as raw HTML/JSON without escaping. */
 const RAW_HTML_KEYS = new Set([
   'statusHtml',
   'expirationHtml',
@@ -149,6 +163,10 @@ const RAW_HTML_KEYS = new Set([
   'qrCodeDataUri',
 ]);
 
+/**
+ * Render a template with two passes: raw HTML blocks first (unescaped),
+ * then remaining variables (HTML-escaped).
+ */
 function renderRawHtml(template: string, vars: Record<string, string>): string {
   // First pass: render raw HTML/JSON blocks (not escaped)
   let result = template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
@@ -164,7 +182,17 @@ function renderRawHtml(template: string, vars: Record<string, string>): string {
   return result;
 }
 
-// GET /verify/:assertionId - HTML verification page with OG tags
+/**
+ * Badge verification page with OG meta tags, QR code, and a modal for
+ * viewing the raw Verifiable Credential JSON-LD.
+ *
+ * Responds with `application/vc+ld+json` if the client sends an appropriate
+ * `Accept` header; otherwise renders the HTML page.
+ *
+ * @route GET /verify/:assertionId
+ * @returns HTML page or JSON-LD credential.
+ * @returns 404 — Assertion not found.
+ */
 router.get('/verify/:assertionId', async (req: Request, res: Response) => {
   const assertionId = req.params.assertionId as string;
   const assertion = await prismaUnfiltered.assertion.findUnique({
@@ -261,7 +289,14 @@ router.get('/verify/:assertionId', async (req: Request, res: Response) => {
     .send(html);
 });
 
-// GET /api/v1/assertions/:assertionId - Raw JSON-LD credential (immutable)
+/**
+ * Raw JSON-LD Verifiable Credential (immutable). Reorders keys so `@context`
+ * appears first for compatibility with naive validators.
+ *
+ * @route GET /api/v1/assertions/:assertionId
+ * @returns `application/vc+ld+json` payload.
+ * @returns 404 — Assertion not found.
+ */
 router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response) => {
   const assertionId = req.params.assertionId as string;
   const assertion = await prismaUnfiltered.assertion.findUnique({
@@ -280,7 +315,14 @@ router.get('/api/v1/assertions/:assertionId', async (req: Request, res: Response
   res.type('application/vc+ld+json').json(ordered);
 });
 
-// GET /badges/:assertionId/image - Dynamically baked badge image with embedded credential
+/**
+ * Dynamically baked badge image with the signed credential embedded
+ * (PNG iTXt chunk or SVG `openbadges:credential` element).
+ *
+ * @route GET /badges/:assertionId/image
+ * @returns Baked PNG or SVG image; falls back to a redirect to the original image URL.
+ * @returns 404 — Assertion not found.
+ */
 router.get('/badges/:assertionId/image', async (req: Request, res: Response) => {
   const assertionId = req.params.assertionId as string;
   const assertion = await prismaUnfiltered.assertion.findUnique({
@@ -308,7 +350,14 @@ router.get('/badges/:assertionId/image', async (req: Request, res: Response) => 
     .send(baked.buffer);
 });
 
-// GET /achievements/:badgeClassId - Achievement JSON-LD (resolves achievement.id URIs)
+/**
+ * Achievement JSON-LD document. Resolves `achievement.id` URIs used in
+ * Verifiable Credentials.
+ *
+ * @route GET /achievements/:badgeClassId
+ * @returns `application/ld+json` Achievement document.
+ * @returns 404 — Badge class not found.
+ */
 router.get('/achievements/:badgeClassId', async (req: Request, res: Response) => {
   const badgeClassId = req.params.badgeClassId as string;
   const badgeClass = await prismaUnfiltered.badgeClass.findUnique({
@@ -341,7 +390,13 @@ router.get('/achievements/:badgeClassId', async (req: Request, res: Response) =>
   res.type('application/ld+json').json(achievement);
 });
 
-// GET /keys/:tenantId - Public key document
+/**
+ * Public key document for a tenant (Multikey verification method).
+ *
+ * @route GET /keys/:tenantId
+ * @returns `application/ld+json` Multikey document.
+ * @returns 404 — Tenant not found.
+ */
 router.get('/keys/:tenantId', async (req: Request, res: Response) => {
   const tenantId = req.params.tenantId as string;
   const tenant = await prismaUnfiltered.tenant.findUnique({
@@ -365,7 +420,14 @@ router.get('/keys/:tenantId', async (req: Request, res: Response) => {
   res.type('application/ld+json').send(JSON.stringify(keyDocument));
 });
 
-// GET /status/list/:tenantId - W3C Bitstring Status List (revocation, signed)
+/**
+ * W3C Bitstring Status List credential for a tenant. Encodes revocation
+ * status for all assertions and is signed with the tenant's Ed25519 key.
+ *
+ * @route GET /status/list/:tenantId
+ * @returns `application/ld+json` signed BitstringStatusListCredential.
+ * @returns 404 — Tenant not found.
+ */
 router.get('/status/list/:tenantId', async (req: Request, res: Response) => {
   const tenantId = req.params.tenantId as string;
   const tenant = await prismaUnfiltered.tenant.findUnique({

@@ -1,3 +1,11 @@
+/**
+ * @module app
+ * Express application factory. Configures middleware (CORS, rate
+ * limiting, JSON parsing, logging), registers public and authenticated route
+ * mounts, serves static assets, and provides a health-check endpoint and global
+ * error handler.
+ */
+
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import cors from 'cors';

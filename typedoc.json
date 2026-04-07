@@ -1,0 +1,33 @@
+{
+  "entryPoints": [
+    "src/lib/crypto.ts",
+    "src/lib/documentLoader.ts",
+    "src/lib/logger.ts",
+    "src/lib/prisma.ts",
+    "src/lib/safeFetch.ts",
+    "src/lib/schemas.ts",
+    "src/lib/softDelete.ts",
+    "src/middleware/auth.ts",
+    "src/routes/assertions.ts",
+    "src/routes/badges.ts",
+    "src/routes/public.ts",
+    "src/routes/webhooks.ts",
+    "src/services/baking.ts",
+    "src/services/credential.ts",
+    "src/services/email.ts",
+    "src/services/issuance.ts",
+    "src/services/softDelete.ts",
+    "src/services/statusList.ts",
+    "src/services/verify.ts"
+  ],
+  "out": "docs",
+  "exclude": ["node_modules", "dist", "src/generated/**/*"],
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeInternal": true,
+  "readme": "README.md",
+  "name": "Bong API Documentation",
+  "tsconfig": "tsconfig.json",
+  "cleanOutputDir": true,
+  "includeVersion": true
+}

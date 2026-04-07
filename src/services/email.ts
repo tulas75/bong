@@ -1,10 +1,21 @@
+/**
+ * @module services/email
+ * Email notification service. Sends a styled "badge issued" email
+ * to recipients via SMTP. Gracefully skips when SMTP is not configured.
+ */
+
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { logger } from '../lib/logger.js';
 import { escapeHtml } from '../lib/crypto.js';
 
+/** Lazily-initialised nodemailer transporter (singleton). */
 let transporter: Transporter | null = null;
 
+/**
+ * Return the SMTP transporter, initialising it on first call.
+ * Returns `null` when `SMTP_HOST` is not set.
+ */
 function getTransporter(): Transporter | null {
   if (transporter) return transporter;
 
@@ -24,6 +35,7 @@ function getTransporter(): Transporter | null {
   return transporter;
 }
 
+/** Parameters for the {@link sendBadgeIssuedEmail} function. */
 export interface BadgeIssuedEmailParams {
   recipientEmail: string;
   recipientName: string;
@@ -36,6 +48,12 @@ export interface BadgeIssuedEmailParams {
   bakedImage?: { buffer: Buffer; filename: string } | null;
 }
 
+/**
+ * Send a "badge issued" email to the recipient. Attaches the baked badge
+ * image when available. Silently skips when SMTP is not configured.
+ *
+ * @param params - See {@link BadgeIssuedEmailParams}.
+ */
 export async function sendBadgeIssuedEmail(params: BadgeIssuedEmailParams): Promise<void> {
   const transport = getTransporter();
   if (!transport) {

@@ -1,3 +1,11 @@
+/**
+ * @module services/verify
+ * Cryptographic proof verification for Verifiable Credentials.
+ * Supports both `eddsa-rdfc-2022` (Ed25519) and `ecdsa-sd-2023` (P-256)
+ * Data Integrity cryptosuites. Revocation / expiration status is checked
+ * separately via the database — this module only validates the proof.
+ */
+
 import { cryptosuite as eddsaRdfc2022CryptoSuite } from '@digitalbazaar/eddsa-rdfc-2022-cryptosuite';
 import { createVerifyCryptosuite as createEcdsaSd2023VerifySuite } from '@digitalbazaar/ecdsa-sd-2023-cryptosuite';
 import { DataIntegrityProof } from '@digitalbazaar/data-integrity';
@@ -6,9 +14,10 @@ import { documentLoader } from '../lib/documentLoader.js';
 import { logger } from '../lib/logger.js';
 
 /**
- * Cryptographically verify a signed credential using its embedded proof.
- * Supports both eddsa-rdfc-2022 and ecdsa-sd-2023 cryptosuites.
- * Returns { verified: true } on success, or { verified: false, error } on failure.
+ * Verify the cryptographic proof embedded in a Verifiable Credential.
+ *
+ * @param credential - The signed credential object (must include a `proof` property).
+ * @returns `{ verified: true }` on success, or `{ verified: false, error }` on failure.
  */
 export async function verifyCredentialProof(
   credential: object,
