@@ -2,10 +2,6 @@
 
 ## Before Production
 
-### ~~Health check with DB connectivity~~ DONE
-
-`/health` now queries PostgreSQL via `SELECT 1`. Returns `{ status: "ok", db: "connected" }` or `503 { status: "error", db: "unreachable" }`.
-
 ### CI pipeline
 
 **Priority:** High
@@ -16,10 +12,6 @@ Tests only run locally. A failed deploy from untested code is a matter of time.
 - [ ] GitHub Actions workflow: install, build, test on push/PR
 - [ ] Run `npx tsc --noEmit` + `npx vitest run`
 - [ ] Cache node_modules for faster runs
-
-### ~~CLI tests~~ DONE
-
-17 tests covering tenant create/list/delete/rotate-key, badge create/list/delete, assertion list/revoke/delete/anonymize, and stats.
 
 ---
 
@@ -112,9 +104,9 @@ Styled modal overlay on verification page with pretty-printed JSON, copy-to-clip
 
 Nodemailer SMTP integration. Badge issuance emails with baked image attachment. Non-blocking (failures logged, never block issuance).
 
-## Test Suite (core)
+## Test Suite
 
-Vitest + Supertest. 132 tests covering crypto, schemas, credential signing, auth, API routes, webhooks, revocation, expiration.
+Vitest + Supertest. 150 tests covering crypto, schemas, credential signing, CLI commands (17 tests), auth, API routes, webhooks, revocation, expiration.
 
 ## Linting & Formatting
 
@@ -152,3 +144,7 @@ Server-side QR code generation (`qrcode` package) as PNG data URI. Displayed on 
 ## Request Access Logs + Log Rotation
 
 `pino-http` middleware logs every request (method, url, status, response time). Docker log rotation configured (`max-size: 10m`, `max-file: 5`).
+
+## Health Check with DB Connectivity
+
+`/health` queries PostgreSQL via `SELECT 1`. Returns `{ status: "ok", db: "connected" }` or `503 { status: "error", db: "unreachable" }`.
