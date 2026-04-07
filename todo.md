@@ -1,17 +1,6 @@
 # TODO
 
-## Before Production
-
-### CI pipeline
-
-**Priority:** High
-**Related:** `.github/workflows/`
-
-Tests only run locally. A failed deploy from untested code is a matter of time.
-
-- [ ] GitHub Actions workflow: install, build, test on push/PR
-- [ ] Run `npx tsc --noEmit` + `npx vitest run`
-- [ ] Cache node_modules for faster runs
+## ~~Before Production~~ ALL DONE
 
 ---
 
@@ -148,3 +137,7 @@ Server-side QR code generation (`qrcode` package) as PNG data URI. Displayed on 
 ## Health Check with DB Connectivity
 
 `/health` queries PostgreSQL via `SELECT 1`. Returns `{ status: "ok", db: "connected" }` or `503 { status: "error", db: "unreachable" }`.
+
+## CI Pipeline + Docker Hub
+
+GitHub Actions: lint + test on push/PR to main. Docker Hub image build and push on version tags (`v*`). Uses `docker/build-push-action` with semver tagging (`1.0.0`, `1.0`, `latest`). Requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets.
